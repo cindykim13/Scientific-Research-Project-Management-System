@@ -9,12 +9,14 @@ import com.researchsystem.backend.dto.response.CouncilReadinessResponse;
 import com.researchsystem.backend.dto.response.TopicListResponse;
 import com.researchsystem.backend.service.CouncilService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -68,7 +70,7 @@ public class CouncilController {
             @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER or ADMIN role required")
     })
     public ResponseEntity<Page<CouncilListResponse>> getAllCouncils(
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(councilService.getAllCouncils(pageable));
     }
 
@@ -83,7 +85,7 @@ public class CouncilController {
             @ApiResponse(responseCode = "400", description = "Bad Request"),
             @ApiResponse(responseCode = "403", description = "Forbidden — authentication required")
     })
-    public ResponseEntity<CouncilDetailResponse> getCouncilById(@PathVariable Long id) {
+    public ResponseEntity<CouncilDetailResponse> getCouncilById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(councilService.getCouncilById(id));
     }
 
@@ -99,8 +101,9 @@ public class CouncilController {
             @ApiResponse(responseCode = "400", description = "Bad Request — duplicate IDs or investigator-exclusion violation"),
             @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER role required")
     })
-    public ResponseEntity<Void> assignMembers(@PathVariable Long id,
-                                              @Valid @RequestBody CouncilAssignmentRequest request) {
+    public ResponseEntity<Void> assignMembers(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody CouncilAssignmentRequest request) {
         councilService.assignCouncilMembers(id, request);
         return ResponseEntity.noContent().build();
     }
@@ -117,8 +120,9 @@ public class CouncilController {
             @ApiResponse(responseCode = "400", description = "Bad Request — a topic is not in DEPT_APPROVED status"),
             @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER role required")
     })
-    public ResponseEntity<Void> assignTopics(@PathVariable Long id,
-                                             @Valid @RequestBody AssignTopicsRequest request) {
+    public ResponseEntity<Void> assignTopics(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody AssignTopicsRequest request) {
         councilService.assignTopics(id, request);
         return ResponseEntity.noContent().build();
     }
@@ -136,8 +140,8 @@ public class CouncilController {
             @ApiResponse(responseCode = "403", description = "Forbidden — COUNCIL role required")
     })
     public ResponseEntity<Page<TopicListResponse>> getMyTopics(
-            @PageableDefault(size = 20) Pageable pageable,
-            Principal principal) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.ok(councilService.getExpertTopics(principal.getName(), pageable));
     }
 
@@ -153,7 +157,7 @@ public class CouncilController {
             @ApiResponse(responseCode = "400", description = "Bad Request"),
             @ApiResponse(responseCode = "403", description = "Forbidden — COUNCIL role required")
     })
-    public ResponseEntity<CouncilReadinessResponse> getEvaluationStatus(@PathVariable Long id) {
+    public ResponseEntity<CouncilReadinessResponse> getEvaluationStatus(@PathVariable("id") Long id) {
         return ResponseEntity.ok(councilService.getEvaluationStatus(id));
     }
 }

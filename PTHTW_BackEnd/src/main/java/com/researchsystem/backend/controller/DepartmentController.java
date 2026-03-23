@@ -4,11 +4,13 @@ import com.researchsystem.backend.dto.response.DepartmentResponse;
 import com.researchsystem.backend.dto.response.TopicListResponse;
 import com.researchsystem.backend.service.DepartmentService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -58,8 +60,8 @@ public class DepartmentController {
             @ApiResponse(responseCode = "403", description = "Forbidden — DEPT_HEAD role required")
     })
     public ResponseEntity<Page<TopicListResponse>> getDeptTopics(
-            @PageableDefault(size = 20) Pageable pageable,
-            Principal principal) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.ok(departmentService.getDeptTopics(principal.getName(), pageable));
     }
 }

@@ -9,12 +9,14 @@ import com.researchsystem.backend.dto.response.TopicDetailResponse;
 import com.researchsystem.backend.dto.response.TopicListResponse;
 import com.researchsystem.backend.service.TopicService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -63,8 +65,9 @@ public class TopicController {
             @ApiResponse(responseCode = "400", description = "Bad Request — validation error on payload"),
             @ApiResponse(responseCode = "403", description = "Forbidden — RESEARCHER role required")
     })
-    public ResponseEntity<TopicDetailResponse> createTopic(@Valid @RequestBody TopicCreationRequest request,
-                                                           Principal principal) {
+    public ResponseEntity<TopicDetailResponse> createTopic(
+            @Valid @RequestBody TopicCreationRequest request,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(topicService.createTopic(request, principal.getName()));
     }
@@ -81,9 +84,10 @@ public class TopicController {
             @ApiResponse(responseCode = "400", description = "Bad Request — missing file or invalid topic"),
             @ApiResponse(responseCode = "403", description = "Forbidden — RESEARCHER role required")
     })
-    public ResponseEntity<AttachmentResponse> uploadAttachment(@PathVariable Long id,
-                                                               @RequestParam("file") MultipartFile file,
-                                                               Principal principal) {
+    public ResponseEntity<AttachmentResponse> uploadAttachment(
+            @PathVariable("id") Long id,
+            @RequestParam("file") MultipartFile file,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(topicService.uploadAttachment(id, file, principal.getName()));
     }
@@ -101,9 +105,10 @@ public class TopicController {
             @ApiResponse(responseCode = "403", description = "Forbidden — RESEARCHER role required"),
             @ApiResponse(responseCode = "409", description = "Conflict — topic is no longer in DRAFT status")
     })
-    public ResponseEntity<TopicDetailResponse> updateTopic(@PathVariable Long id,
-                                                           @Valid @RequestBody UpdateTopicRequest request,
-                                                           Principal principal) {
+    public ResponseEntity<TopicDetailResponse> updateTopic(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody UpdateTopicRequest request,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.ok(topicService.updateTopic(id, request, principal.getName()));
     }
 
@@ -119,8 +124,8 @@ public class TopicController {
             @ApiResponse(responseCode = "403", description = "Forbidden — RESEARCHER role required")
     })
     public ResponseEntity<Page<TopicListResponse>> getMyTopics(
-            @PageableDefault(size = 20) Pageable pageable,
-            Principal principal) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.ok(topicService.getTopicsByInvestigator(principal.getName(), pageable));
     }
 
@@ -136,7 +141,9 @@ public class TopicController {
             @ApiResponse(responseCode = "403", description = "Forbidden — RESEARCHER role required"),
             @ApiResponse(responseCode = "409", description = "Conflict — topic is not in DRAFT status")
     })
-    public ResponseEntity<Void> deleteTopic(@PathVariable Long id, Principal principal) {
+    public ResponseEntity<Void> deleteTopic(
+            @PathVariable("id") Long id,
+            @Parameter(hidden = true) Principal principal) {
         topicService.deleteTopic(id, principal.getName());
         return ResponseEntity.noContent().build();
     }
@@ -154,9 +161,10 @@ public class TopicController {
             @ApiResponse(responseCode = "403", description = "Forbidden — RESEARCHER role required"),
             @ApiResponse(responseCode = "409", description = "Conflict — invalid state transition")
     })
-    public ResponseEntity<TopicDetailResponse> submitTopic(@PathVariable Long id,
-                                                           @Valid @RequestBody TopicStatusChangeRequest request,
-                                                           Principal principal) {
+    public ResponseEntity<TopicDetailResponse> submitTopic(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody TopicStatusChangeRequest request,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.ok(topicService.changeTopicStatus(id, request, principal.getName()));
     }
 
@@ -177,9 +185,10 @@ public class TopicController {
             @ApiResponse(responseCode = "403", description = "Forbidden — DEPT_HEAD role required"),
             @ApiResponse(responseCode = "409", description = "Conflict — invalid state transition")
     })
-    public ResponseEntity<TopicDetailResponse> deptReview(@PathVariable Long id,
-                                                          @Valid @RequestBody TopicStatusChangeRequest request,
-                                                          Principal principal) {
+    public ResponseEntity<TopicDetailResponse> deptReview(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody TopicStatusChangeRequest request,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.ok(topicService.changeTopicStatus(id, request, principal.getName()));
     }
 
@@ -199,7 +208,7 @@ public class TopicController {
             @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER or ADMIN role required")
     })
     public ResponseEntity<Page<TopicListResponse>> getAllTopics(
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(topicService.getAllTopics(pageable));
     }
 
@@ -216,9 +225,10 @@ public class TopicController {
             @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER role required"),
             @ApiResponse(responseCode = "409", description = "Conflict — invalid state transition")
     })
-    public ResponseEntity<TopicDetailResponse> managerReview(@PathVariable Long id,
-                                                             @Valid @RequestBody TopicStatusChangeRequest request,
-                                                             Principal principal) {
+    public ResponseEntity<TopicDetailResponse> managerReview(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody TopicStatusChangeRequest request,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.ok(topicService.changeTopicStatus(id, request, principal.getName()));
     }
 
@@ -237,7 +247,7 @@ public class TopicController {
             @ApiResponse(responseCode = "400", description = "Bad Request"),
             @ApiResponse(responseCode = "403", description = "Forbidden — authentication required")
     })
-    public ResponseEntity<TopicDetailResponse> getTopicById(@PathVariable Long id) {
+    public ResponseEntity<TopicDetailResponse> getTopicById(@PathVariable("id") Long id) {
         return ResponseEntity.ok(topicService.getTopicById(id));
     }
 
@@ -252,7 +262,7 @@ public class TopicController {
             @ApiResponse(responseCode = "400", description = "Bad Request"),
             @ApiResponse(responseCode = "403", description = "Forbidden — authentication required")
     })
-    public ResponseEntity<List<AuditLogResponse>> getAuditLogs(@PathVariable Long id) {
+    public ResponseEntity<List<AuditLogResponse>> getAuditLogs(@PathVariable("id") Long id) {
         return ResponseEntity.ok(topicService.getAuditLogs(id));
     }
 
@@ -272,7 +282,7 @@ public class TopicController {
             @ApiResponse(responseCode = "400", description = "Bad Request — no submitted evaluations yet"),
             @ApiResponse(responseCode = "403", description = "Forbidden — COUNCIL role required")
     })
-    public ResponseEntity<BigDecimal> getAverageScore(@PathVariable Long id) {
+    public ResponseEntity<BigDecimal> getAverageScore(@PathVariable("id") Long id) {
         return ResponseEntity.ok(topicService.getAverageScore(id));
     }
 }

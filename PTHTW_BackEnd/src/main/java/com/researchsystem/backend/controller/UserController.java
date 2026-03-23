@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -62,7 +63,7 @@ public class UserController {
             @ApiResponse(responseCode = "403", description = "Forbidden — ADMIN or MANAGER role required")
     })
     public ResponseEntity<Page<UserResponse>> getAllUsers(
-            @PageableDefault(size = 20, sort = "userId") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20, sort = "userId") Pageable pageable) {
         return ResponseEntity.ok(userService.getAllUsers(pageable));
     }
 
@@ -78,8 +79,9 @@ public class UserController {
             @ApiResponse(responseCode = "400", description = "Bad Request — validation error"),
             @ApiResponse(responseCode = "403", description = "Forbidden — ADMIN role required")
     })
-    public ResponseEntity<UserResponse> updateUserStatus(@PathVariable Long id,
-                                                         @Valid @RequestBody UpdateUserStatusRequest request) {
+    public ResponseEntity<UserResponse> updateUserStatus(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody UpdateUserStatusRequest request) {
         return ResponseEntity.ok(userService.updateUserStatus(id, request));
     }
 }

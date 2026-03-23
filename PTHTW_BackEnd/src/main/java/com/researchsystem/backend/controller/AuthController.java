@@ -6,6 +6,7 @@ import com.researchsystem.backend.dto.response.AuthResponse;
 import com.researchsystem.backend.dto.response.UserResponse;
 import com.researchsystem.backend.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -13,7 +14,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,7 +56,7 @@ public class AuthController {
             @ApiResponse(responseCode = "400", description = "Bad Request"),
             @ApiResponse(responseCode = "403", description = "Forbidden — valid token required")
     })
-    public ResponseEntity<UserResponse> getMe(Principal principal) {
+    public ResponseEntity<UserResponse> getMe(@Parameter(hidden = true) Principal principal) {
         return ResponseEntity.ok(authService.getCurrentUser(principal.getName()));
     }
 
@@ -72,8 +72,9 @@ public class AuthController {
             @ApiResponse(responseCode = "400", description = "Bad Request — current password incorrect or validation failure"),
             @ApiResponse(responseCode = "403", description = "Forbidden — valid token required")
     })
-    public ResponseEntity<Void> updatePassword(@Valid @RequestBody UpdatePasswordRequest request,
-                                               Principal principal) {
+    public ResponseEntity<Void> updatePassword(
+            @Valid @RequestBody UpdatePasswordRequest request,
+            @Parameter(hidden = true) Principal principal) {
         authService.updatePassword(principal.getName(), request);
         return ResponseEntity.noContent().build();
     }

@@ -1,19 +1,18 @@
 package com.researchsystem.backend.config;
 
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * Web MVC configuration.
+ *
+ * CORS is handled exclusively by Spring Security's CorsFilter, registered via
+ * SecurityConfig.corsConfigurationSource(). That bean maps "/**" with
+ * allowedOriginPatterns("*"), covering all API and springdoc paths.
+ *
+ * Defining an additional WebMvcConfigurer.addCorsMappings() would create a
+ * second, lower-priority CORS pass that conflicts with the security-layer filter
+ * in Spring Security 7.x, potentially producing duplicate CORS headers.
+ */
 @Configuration
-public class WebConfig implements WebMvcConfigurer {
-
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:3000")
-                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                .allowedHeaders("Authorization", "Content-Type", "X-Requested-With")
-                .allowCredentials(true)
-                .maxAge(3600);
-    }
+public class WebConfig {
 }

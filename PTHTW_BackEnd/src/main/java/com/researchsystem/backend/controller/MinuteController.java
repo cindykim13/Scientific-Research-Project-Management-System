@@ -4,6 +4,7 @@ import com.researchsystem.backend.dto.request.MinuteRequest;
 import com.researchsystem.backend.dto.response.MinuteResponse;
 import com.researchsystem.backend.service.MinuteService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -43,8 +44,9 @@ public class MinuteController {
             @ApiResponse(responseCode = "403", description = "Forbidden — COUNCIL role required"),
             @ApiResponse(responseCode = "409", description = "Conflict — not all evaluations have been submitted yet")
     })
-    public ResponseEntity<MinuteResponse> submitMinute(@Valid @RequestBody MinuteRequest request,
-                                                       Principal principal) {
+    public ResponseEntity<MinuteResponse> submitMinute(
+            @Valid @RequestBody MinuteRequest request,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(minuteService.submitMinute(request, principal.getName()));
     }

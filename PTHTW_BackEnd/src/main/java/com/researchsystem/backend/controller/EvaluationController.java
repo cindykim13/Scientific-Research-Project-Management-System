@@ -4,6 +4,7 @@ import com.researchsystem.backend.dto.request.EvaluationRequest;
 import com.researchsystem.backend.dto.response.EvaluationResponse;
 import com.researchsystem.backend.service.EvaluationService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -43,8 +44,9 @@ public class EvaluationController {
             @ApiResponse(responseCode = "403", description = "Forbidden — COUNCIL role required"),
             @ApiResponse(responseCode = "409", description = "Conflict — evaluation already submitted for this council member")
     })
-    public ResponseEntity<EvaluationResponse> submitEvaluation(@Valid @RequestBody EvaluationRequest request,
-                                                               Principal principal) {
+    public ResponseEntity<EvaluationResponse> submitEvaluation(
+            @Valid @RequestBody EvaluationRequest request,
+            @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(evaluationService.submitEvaluation(request, principal.getName()));
     }
