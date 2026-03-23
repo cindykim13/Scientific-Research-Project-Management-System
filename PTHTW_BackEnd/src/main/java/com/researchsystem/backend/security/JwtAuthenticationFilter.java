@@ -36,10 +36,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     );
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
-        return PUBLIC_PATHS.stream()
-                .anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        // Liệt kê các đường dẫn tuyệt đối không đi qua bộ lọc JWT
+        return path.startsWith("/v3/api-docs") || 
+               path.startsWith("/swagger-ui") || 
+               path.startsWith("/swagger-resources") || 
+               path.startsWith("/api/v1/auth/login");
     }
 
     @Override

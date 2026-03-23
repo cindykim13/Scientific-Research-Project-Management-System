@@ -1,6 +1,7 @@
 package com.researchsystem.backend.config;
 
 import com.researchsystem.backend.security.JwtAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,7 +17,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -56,25 +56,42 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(Customizer.withDefaults())
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                PathPatternRequestMatcher.pathPattern("/api/v1/auth/**"),
-                                PathPatternRequestMatcher.pathPattern("/v3/api-docs"),
-                                PathPatternRequestMatcher.pathPattern("/v3/api-docs/**"),
-                                PathPatternRequestMatcher.pathPattern("/swagger-ui.html"),
-                                PathPatternRequestMatcher.pathPattern("/swagger-ui/**"),
-                                PathPatternRequestMatcher.pathPattern("/webjars/**"),
-                                PathPatternRequestMatcher.pathPattern("/swagger-resources/**")
-                        ).permitAll()
-                        .anyRequest().authenticated()
-                )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .csrf(AbstractHttpConfigurer::disable)
+            .cors(Customizer.withDefaults())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                // Spring Security 7.x secures FORWARD/ERROR/INCLUDE dispatches by default.
+                // Permit them explicitly so internal error forwarding to /error is never blocked.
+                .dispatcherTypeMatchers(
+                    DispatcherType.FORWARD,
+                    DispatcherType.ERROR,
+                    DispatcherType.INCLUDE
+                ).permitAll()
+
+                // OpenAPI / Swagger UI — all paths required by springdoc-openapi 3.x
+                .requestMatchers(
+                    "/v3/api-docs",
+                    "/v3/api-docs/**",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/swagger-resources",
+                    "/swagger-resources/**",
+                    "/configuration/ui",
+                    "/configuration/security",
+                    "/webjars/**",
+                    "/error"
+                ).permitAll()
+
+                // Login endpoint
+                .requestMatchers("/api/v1/auth/login").permitAll()
+
+                // All other requests require a valid JWT
+                .anyRequest().authenticated()
+            );
+
+        http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

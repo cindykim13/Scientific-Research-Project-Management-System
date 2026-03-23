@@ -1,9 +1,5 @@
 package com.researchsystem.backend.config;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
@@ -12,17 +8,13 @@ import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.info.License;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.annotations.servers.Server;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
 
 /**
  * OpenAPI / Swagger UI global configuration.
  *
- * Spring Boot 4.0 auto-configures only tools.jackson.databind.json.JsonMapper (Jackson 3.x).
- * springdoc-openapi 2.6.0 requires com.fasterxml.jackson.databind.ObjectMapper (Jackson 2.x)
- * for its ObjectMapperProvider. Without this bean the /v3/api-docs endpoint throws
- * NoSuchBeanDefinitionException which surfaces as HTTP 500.
+ * springdoc-openapi 3.x is built for Spring Boot 4.x / Spring Framework 7.x and uses
+ * Jackson 3.x (tools.jackson.*) natively — no manual ObjectMapper bean is required.
  */
 @Configuration
 @OpenAPIDefinition(
@@ -55,13 +47,4 @@ import org.springframework.context.annotation.Primary;
                       "Format: Authorization: Bearer <token>"
 )
 public class OpenApiConfig {
-
-    @Bean
-    @Primary
-    public ObjectMapper objectMapper() {
-        return new ObjectMapper()
-                .registerModule(new JavaTimeModule())
-                .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-    }
 }
