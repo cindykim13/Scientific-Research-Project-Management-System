@@ -33,13 +33,21 @@ public interface CouncilService {
     CouncilDetailResponse getCouncilById(Long id);
 
     /**
-     * Assigns expert users as MEMBER-role council members for the given council,
-     * enforcing uniqueness and the investigator-exclusion rule.
-     *
-     * @throws IllegalArgumentException if duplicate IDs are present or if the
-     *                                  topic's investigator appears in the expert list
+     * Assigns experts with explicit {@link com.researchsystem.backend.domain.enums.CouncilRole}
+     * values (PRESIDENT, SECRETARY, MEMBER). Enforces at most one PRESIDENT and one SECRETARY per council,
+     * COUNCIL system role for each user, uniqueness, and the investigator-exclusion rule.
      */
     void assignCouncilMembers(Long councilId, CouncilAssignmentRequest request);
+
+    /**
+     * Removes a member from a council (e.g. mistaken assignment).
+     */
+    void removeCouncilMember(Long councilId, Long userId);
+
+    /**
+     * Unassigns a topic from a council and returns it to {@code DEPT_APPROVED} status.
+     */
+    void removeTopicFromCouncil(Long councilId, Long topicId);
 
     /**
      * Assigns a list of DEPT_APPROVED topics to the specified council for evaluation.

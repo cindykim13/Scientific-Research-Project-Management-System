@@ -1,0 +1,69 @@
+# ==========================================
+# MASTER .GITIGNORE FOR PTHTW SYSTEM (MONOREPO)
+# ==========================================
+
+# 1. HỆ ĐIỀU HÀNH (OS Files)
+# ------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# 2. CÔNG CỤ LẬP TRÌNH (IDE & Editors)
+# ------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+.project
+.classpath
+.settings/
+
+# 3. THÔNG TIN BẢO MẬT & MÔI TRƯỜNG (Secrets & Env)
+# ------------------------------------------
+# Cực kỳ quan trọng: Tuyệt đối không đẩy file chứa mật khẩu lên Git
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+application-secret.yml
+
+# 4. FRONTEND (ReactJS / Node.js)
+# ------------------------------------------
+# Áp dụng cho thư mục PTHTW_FrontEnd và bất kỳ đâu
+node_modules/
+dist/
+build/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+.parcel-cache/
+
+# 5. BACKEND (Spring Boot / Java / Maven)
+# ------------------------------------------
+# Áp dụng cho thư mục PTHTW_BackEnd và bất kỳ đâu
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.log
+
+# 6. DỮ LIỆU CỦA DOCKER VÀ DATABASE LOCAL
+# ------------------------------------------
+mysql_data/
+db_data/
+pgdata/
+
+# ==========================================
+# LƯU Ý CHO TEAM: CÁC FILE ĐƯỢC PHÉP COMMIT
+# ==========================================
+# Các file tài liệu (.pdf), docker-compose.yml, README.md 
+# ở thư mục gốc SẼ ĐƯỢC giữ lại và đẩy lên Git để team cùng đọc.

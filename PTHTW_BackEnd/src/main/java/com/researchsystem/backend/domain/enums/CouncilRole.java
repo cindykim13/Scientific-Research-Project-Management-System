@@ -2,7 +2,7 @@ package com.researchsystem.backend.domain.enums;
 
 public enum CouncilRole {
     /** Chủ tịch hội đồng */
-    CHAIRMAN,
+    PRESIDENT,
     /** Thư ký hội đồng */
     SECRETARY,
     /** Thành viên phản biện */

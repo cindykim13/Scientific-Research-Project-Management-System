@@ -3,6 +3,7 @@ package com.researchsystem.backend.controller;
 import com.researchsystem.backend.dto.request.TopicCreationRequest;
 import com.researchsystem.backend.dto.request.TopicStatusChangeRequest;
 import com.researchsystem.backend.dto.request.UpdateTopicRequest;
+import com.researchsystem.backend.dto.response.AttachmentDownloadPayload;
 import com.researchsystem.backend.dto.response.AttachmentResponse;
 import com.researchsystem.backend.dto.response.AuditLogResponse;
 import com.researchsystem.backend.dto.response.TopicDetailResponse;
@@ -20,6 +21,8 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -148,44 +151,21 @@ public class TopicController {
         return ResponseEntity.noContent().build();
     }
 
-    @PatchMapping("/{id}/submit")
-    @PreAuthorize("hasRole('RESEARCHER')")
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('RESEARCHER','DEPT_HEAD','MANAGER','ADMIN')")
     @Operation(
-            summary = "Submit a DRAFT topic for department review",
-            description = "Transitions the topic from DRAFT → PENDING_REVIEW status, " +
-                          "initiating the departmental approval workflow."
+            summary = "Transition topic status (unified workflow endpoint)",
+            description = "Applies a legal finite-state-machine transition with strict role checks: " +
+                          "RESEARCHER (owner) for submission / revision; DEPT_HEAD (same department) for " +
+                          "departmental review; MANAGER for manager/council-stage transitions; ADMIN may perform any transition."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Topic submitted for department review"),
+            @ApiResponse(responseCode = "200", description = "Status updated successfully"),
             @ApiResponse(responseCode = "400", description = "Bad Request — invalid payload"),
-            @ApiResponse(responseCode = "403", description = "Forbidden — RESEARCHER role required"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — role not permitted for this transition"),
             @ApiResponse(responseCode = "409", description = "Conflict — invalid state transition")
     })
-    public ResponseEntity<TopicDetailResponse> submitTopic(
-            @PathVariable("id") Long id,
-            @Valid @RequestBody TopicStatusChangeRequest request,
-            @Parameter(hidden = true) Principal principal) {
-        return ResponseEntity.ok(topicService.changeTopicStatus(id, request, principal.getName()));
-    }
-
-    // -----------------------------------------------------------------------
-    // DEPT_HEAD: Department-level review
-    // -----------------------------------------------------------------------
-
-    @PatchMapping("/{id}/dept-review")
-    @PreAuthorize("hasRole('DEPT_HEAD')")
-    @Operation(
-            summary = "Department head approves or rejects a topic",
-            description = "Transitions the topic from PENDING_REVIEW → DEPT_APPROVED or DEPT_REJECTED. " +
-                          "An optional feedback note is recorded in the audit log."
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Departmental review decision recorded"),
-            @ApiResponse(responseCode = "400", description = "Bad Request — missing or invalid newStatus"),
-            @ApiResponse(responseCode = "403", description = "Forbidden — DEPT_HEAD role required"),
-            @ApiResponse(responseCode = "409", description = "Conflict — invalid state transition")
-    })
-    public ResponseEntity<TopicDetailResponse> deptReview(
+    public ResponseEntity<TopicDetailResponse> changeTopicStatus(
             @PathVariable("id") Long id,
             @Valid @RequestBody TopicStatusChangeRequest request,
             @Parameter(hidden = true) Principal principal) {
@@ -210,26 +190,6 @@ public class TopicController {
     public ResponseEntity<Page<TopicListResponse>> getAllTopics(
             @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return ResponseEntity.ok(topicService.getAllTopics(pageable));
-    }
-
-    @PatchMapping("/{id}/man-review")
-    @PreAuthorize("hasRole('MANAGER')")
-    @Operation(
-            summary = "Manager approves topic for council evaluation",
-            description = "Transitions the topic from DEPT_APPROVED → PENDING_COUNCIL, " +
-                          "forwarding it to the evaluation council stage."
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Manager review decision recorded"),
-            @ApiResponse(responseCode = "400", description = "Bad Request — missing or invalid newStatus"),
-            @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER role required"),
-            @ApiResponse(responseCode = "409", description = "Conflict — invalid state transition")
-    })
-    public ResponseEntity<TopicDetailResponse> managerReview(
-            @PathVariable("id") Long id,
-            @Valid @RequestBody TopicStatusChangeRequest request,
-            @Parameter(hidden = true) Principal principal) {
-        return ResponseEntity.ok(topicService.changeTopicStatus(id, request, principal.getName()));
     }
 
     // -----------------------------------------------------------------------
@@ -284,5 +244,39 @@ public class TopicController {
     })
     public ResponseEntity<BigDecimal> getAverageScore(@PathVariable("id") Long id) {
         return ResponseEntity.ok(topicService.getAverageScore(id));
+    }
+    
+    @GetMapping("/{id}/attachments/{attachmentId}")
+    @Operation(
+            summary = "Download a specific attachment",
+            description = "Streams a stored file for reviewers and stakeholders: MANAGER/ADMIN, " +
+                          "the principal investigator, the department head of the managing department, " +
+                          "or council members assigned to the topic's council."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "File downloaded successfully"),
+            @ApiResponse(responseCode = "404", description = "Topic or attachment not found"),
+            @ApiResponse(responseCode = "403", description = "Forbidden")
+    })
+    public ResponseEntity<Resource> downloadAttachment(
+            @PathVariable("id") Long topicId,
+            @PathVariable("attachmentId") Long attachmentId,
+            @Parameter(hidden = true) Principal principal) {
+
+        AttachmentDownloadPayload payload = topicService.loadAttachmentForDownload(
+                topicId, attachmentId, principal.getName());
+
+        MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
+        try {
+            mediaType = MediaType.parseMediaType(payload.getContentType());
+        } catch (Exception ignored) {
+            // keep OCTET_STREAM
+        }
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + payload.getFilename() + "\"")
+                .body(payload.getResource());
     }
 }

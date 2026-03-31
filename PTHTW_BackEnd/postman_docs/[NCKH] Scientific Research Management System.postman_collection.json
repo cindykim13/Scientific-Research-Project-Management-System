@@ -97,12 +97,32 @@
       ]
     },
     {
-      "name": "New Request",
-      "request": {
-        "method": "GET",
-        "header": []
-      },
-      "response": []
+      "name": "2. Topics",
+      "item": []
+    },
+    {
+      "name": "3. Councils",
+      "item": []
+    },
+    {
+      "name": "4. User Management",
+      "item": []
+    },
+    {
+      "name": "5. Meeting minutes",
+      "item": []
+    },
+    {
+      "name": "6. Departments",
+      "item": []
+    },
+    {
+      "name": "7. Statistics",
+      "item": []
+    },
+    {
+      "name": "8. Evaluations",
+      "item": []
     }
   ],
   "auth": {

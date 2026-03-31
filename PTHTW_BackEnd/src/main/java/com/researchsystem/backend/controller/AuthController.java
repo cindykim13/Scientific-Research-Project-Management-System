@@ -1,6 +1,7 @@
 package com.researchsystem.backend.controller;
 
 import com.researchsystem.backend.dto.request.LoginRequest;
+import com.researchsystem.backend.dto.request.RegisterTestRequest;
 import com.researchsystem.backend.dto.request.UpdatePasswordRequest;
 import com.researchsystem.backend.dto.response.AuthResponse;
 import com.researchsystem.backend.dto.response.UserResponse;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -43,6 +45,20 @@ public class AuthController {
     })
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
+    }
+
+    @PostMapping("/register-test")
+    @Operation(
+            summary = "[Temporary] Register a test user for bootstrap",
+            description = "Creates a user with a BCrypt-encoded password. Intended for local/dev when seed data hashes do not match the encoder."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "User created"),
+            @ApiResponse(responseCode = "400", description = "Validation error or email already in use")
+    })
+    public ResponseEntity<Void> registerTest(@Valid @RequestBody RegisterTestRequest request) {
+        authService.registerTestUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 
     @GetMapping("/me")

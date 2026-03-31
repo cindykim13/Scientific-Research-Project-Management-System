@@ -6,9 +6,9 @@ spring:
   # 1. DATABASE CONNECTION CONFIGURATION
   # ===================================================================
   datasource:
-    url: jdbc:mysql://localhost:3306/research_management_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true&characterEncoding=UTF-8
+    url: jdbc:mysql://127.0.0.1:3307/research_management_db?useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true
     username: root
-    password: Mysql@12345678900
+    password: mat_khau_cua_ban
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 20
@@ -42,7 +42,8 @@ spring:
 # ===================================================================
 app:
   jwt:
-    secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    # Bắt buộc sử dụng chuỗi mã hóa chuẩn BASE64 (Dưới đây là chuỗi an toàn 512-bit)
+    secret: V1hVbURGOWV3N2pGNTZzSzh4MnpCNnE4M3Y1YjlBMEQzRjdIMUwyTTROOFA5UVEyVjRZNlg3WjhBMUMyRTNGNA==
     expiration: 86400000
 
 # ===================================================================

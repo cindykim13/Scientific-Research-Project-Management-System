@@ -1,6 +1,7 @@
 package com.researchsystem.backend.service;
 
 import com.researchsystem.backend.dto.request.LoginRequest;
+import com.researchsystem.backend.dto.request.RegisterTestRequest;
 import com.researchsystem.backend.dto.request.UpdatePasswordRequest;
 import com.researchsystem.backend.dto.response.AuthResponse;
 import com.researchsystem.backend.dto.response.UserResponse;
@@ -27,4 +28,9 @@ public interface AuthService {
      * @param request payload with currentPassword and newPassword
      */
     void updatePassword(String email, UpdatePasswordRequest request);
+
+    /**
+     * Temporary bootstrap: creates a user with an encoded password for local/testing when seed hashes mismatch.
+     */
+    void registerTestUser(RegisterTestRequest request);
 }

@@ -14,6 +14,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,14 +36,14 @@ public class MinuteController {
     @PreAuthorize("hasRole('COUNCIL')")
     @Operation(
             summary = "Submit the final meeting minute for a council",
-            description = "COUNCIL member (typically the Chairman or Secretary) submits the final " +
-                          "meeting minute after all non-secretary members have submitted their evaluations. " +
-                          "The average score is computed automatically from all SUBMITTED evaluations."
+            description = "Only the user assigned the SECRETARY role on that council may submit or update minutes. " +
+                          "All non-secretary members must have submitted evaluations first. " +
+                          "The average score is computed from SUBMITTED evaluations."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Meeting minute submitted successfully"),
             @ApiResponse(responseCode = "400", description = "Bad Request — validation error or missing fields"),
-            @ApiResponse(responseCode = "403", description = "Forbidden — COUNCIL role required"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — not the council secretary"),
             @ApiResponse(responseCode = "409", description = "Conflict — not all evaluations have been submitted yet")
     })
     public ResponseEntity<MinuteResponse> submitMinute(
@@ -49,5 +51,23 @@ public class MinuteController {
             @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(minuteService.submitMinute(request, principal.getName()));
+    }
+
+    @GetMapping("/topic/{topicId}")
+    @PreAuthorize("hasAnyRole('RESEARCHER','MANAGER','ADMIN')")
+    @Operation(
+            summary = "Get meeting minutes for a topic",
+            description = "Principal investigators may read minutes for their own topics once a council is assigned. " +
+                          "MANAGER and ADMIN may read minutes for any topic."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Minutes returned"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — not the investigator"),
+            @ApiResponse(responseCode = "404", description = "Topic, council, or minutes not found")
+    })
+    public ResponseEntity<MinuteResponse> getMinuteForTopic(
+            @PathVariable("topicId") Long topicId,
+            @Parameter(hidden = true) Principal principal) {
+        return ResponseEntity.ok(minuteService.getMinuteForTopic(topicId, principal.getName()));
     }
 }

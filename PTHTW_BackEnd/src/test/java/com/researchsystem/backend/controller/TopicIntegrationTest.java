@@ -88,8 +88,7 @@ class TopicIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
     private TopicRepository topicRepository;
@@ -262,7 +261,7 @@ class TopicIntegrationTest {
          */
         @Test
         @WithMockUser(username = "researcher.fit1@university.edu.vn", roles = "RESEARCHER")
-        @DisplayName("PATCH /{id}/submit → 500 when auditLog throws; topic status remains DRAFT in DB")
+        @DisplayName("PATCH /{id}/status → 500 when auditLog throws; topic status remains DRAFT in DB")
         void changeTopicStatus_auditLogThrows_returns500AndStatusRemainsUnchanged()
                 throws Exception {
 
@@ -306,9 +305,9 @@ class TopicIntegrationTest {
             changeRequest.setNewStatus(TopicStatus.PENDING_REVIEW);
             changeRequest.setFeedbackNote("Submitted by researcher");
 
-            // ---- Act: call the submit endpoint ----
+            // ---- Act: call the unified status endpoint ----
             mockMvc.perform(
-                            patch("/api/v1/topics/{id}/submit", topicId)
+                            patch("/api/v1/topics/{id}/status", topicId)
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(objectMapper.writeValueAsString(changeRequest)))
                     // ---- Assert (API layer): GlobalExceptionHandler returns 500 ----
@@ -331,7 +330,7 @@ class TopicIntegrationTest {
 
         @Test
         @WithMockUser(username = "researcher.fit1@university.edu.vn", roles = "RESEARCHER")
-        @DisplayName("PATCH /{id}/submit with illegal FSM transition → 409 CONFLICT, auditLog never called")
+        @DisplayName("PATCH /{id}/status with illegal FSM transition → 409 CONFLICT, auditLog never called")
         void changeTopicStatus_invalidFSMTransition_returns409WithoutCallingAuditLog()
                 throws Exception {
 
@@ -363,7 +362,7 @@ class TopicIntegrationTest {
 
             // ---- Act & Assert (API layer): FSM guard throws IllegalStateException → 409 ----
             mockMvc.perform(
-                            patch("/api/v1/topics/{id}/submit", savedTopic.getTopicId())
+                            patch("/api/v1/topics/{id}/status", savedTopic.getTopicId())
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(objectMapper.writeValueAsString(changeRequest)))
                     .andExpect(status().isConflict());
@@ -381,14 +380,14 @@ class TopicIntegrationTest {
 
         @Test
         @WithMockUser(username = "researcher.fit1@university.edu.vn", roles = "RESEARCHER")
-        @DisplayName("PATCH /{id}/submit for non-existent topic → 404 NOT FOUND")
+        @DisplayName("PATCH /{id}/status for non-existent topic → 404 NOT FOUND")
         void changeTopicStatus_topicNotFound_returns404() throws Exception {
 
             TopicStatusChangeRequest changeRequest = new TopicStatusChangeRequest();
             changeRequest.setNewStatus(TopicStatus.PENDING_REVIEW);
 
             mockMvc.perform(
-                            patch("/api/v1/topics/{id}/submit", 999_999L)
+                            patch("/api/v1/topics/{id}/status", 999_999L)
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(objectMapper.writeValueAsString(changeRequest)))
                     .andExpect(status().isNotFound());

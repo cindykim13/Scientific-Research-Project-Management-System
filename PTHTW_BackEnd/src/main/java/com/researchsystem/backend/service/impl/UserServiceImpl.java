@@ -3,7 +3,9 @@ package com.researchsystem.backend.service.impl;
 import com.researchsystem.backend.domain.entity.Department;
 import com.researchsystem.backend.domain.entity.User;
 import com.researchsystem.backend.domain.enums.SystemRole;
+import com.researchsystem.backend.dto.request.CreateDeptHeadRequest;
 import com.researchsystem.backend.dto.request.CreateManagerRequest;
+import com.researchsystem.backend.dto.request.CreateResearcherRequest;
 import com.researchsystem.backend.dto.request.UpdateUserStatusRequest;
 import com.researchsystem.backend.dto.response.UserResponse;
 import com.researchsystem.backend.repository.DepartmentRepository;
@@ -48,6 +50,58 @@ public class UserServiceImpl implements UserService {
                 .build();
 
         User saved = userRepository.save(manager);
+        return toUserResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse createResearcher(CreateResearcherRequest request) {
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email already in use: " + request.getEmail());
+        }
+
+        Department department = departmentRepository.findById(request.getDepartmentId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Department not found with id: " + request.getDepartmentId()));
+
+        User researcher = User.builder()
+                .email(request.getEmail())
+                .passwordHash(passwordEncoder.encode(request.getInitialPassword()))
+                .fullName(request.getFullName())
+                .academicTitle(request.getAcademicTitle())
+                .systemRole(SystemRole.RESEARCHER)
+                .isFirstLogin(true)
+                .active(true)
+                .department(department)
+                .build();
+
+        User saved = userRepository.save(researcher);
+        return toUserResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse createDeptHead(CreateDeptHeadRequest request) {
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email already in use: " + request.getEmail());
+        }
+
+        Department department = departmentRepository.findById(request.getDepartmentId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Department not found with id: " + request.getDepartmentId()));
+
+        User head = User.builder()
+                .email(request.getEmail())
+                .passwordHash(passwordEncoder.encode(request.getInitialPassword()))
+                .fullName(request.getFullName())
+                .academicTitle(request.getAcademicTitle())
+                .systemRole(SystemRole.DEPT_HEAD)
+                .isFirstLogin(true)
+                .active(true)
+                .department(department)
+                .build();
+
+        User saved = userRepository.save(head);
         return toUserResponse(saved);
     }
 

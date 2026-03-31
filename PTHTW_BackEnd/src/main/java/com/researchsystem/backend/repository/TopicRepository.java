@@ -43,6 +43,8 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
 
     boolean existsByTopicCode(String topicCode);
 
+    long countByTopicStatus(TopicStatus topicStatus);
+
     @EntityGraph(attributePaths = {"investigator", "managingDepartment", "topicAttachments", "auditLogs"})
     Optional<Topic> findById(Long id);
 }

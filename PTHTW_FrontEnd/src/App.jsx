@@ -1,4 +1,4 @@
-import EmailTemplatePreviewer from './pages/EmailTemplatePreviewer';
+import EmailTemplatePreviewer from './pages/ResearcherDashboard';
 
 function App() {
   return (

@@ -17,4 +17,9 @@ public interface MinuteService {
      * @throws IllegalStateException                       if not all evaluations have been submitted yet
      */
     MinuteResponse submitMinute(MinuteRequest request, String actorEmail);
+
+    /**
+     * Returns meeting minutes for the council linked to the topic, if the actor may view them.
+     */
+    MinuteResponse getMinuteForTopic(Long topicId, String actorEmail);
 }

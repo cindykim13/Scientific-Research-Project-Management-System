@@ -1,15 +1,14 @@
 package com.researchsystem.backend.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
+import com.researchsystem.backend.domain.enums.CouncilRole;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
 import java.util.List;
 
 @Data
@@ -18,13 +17,24 @@ import java.util.List;
 @Builder
 public class CouncilAssignmentRequest {
 
-    @NotBlank
-    @Size(max = 100)
-    private String councilName;
+    /**
+     * Experts to add to the council, each with a concrete {@link CouncilRole}
+     * (PRESIDENT, SECRETARY, or MEMBER).
+     */
+    @NotEmpty(message = "At least one member assignment is required")
+    @Valid
+    private List<ExpertAssignment> members;
 
-    @NotNull
-    private LocalDate meetingDate;
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class ExpertAssignment {
 
-    @NotEmpty
-    private List<Long> expertUserIds;
+        @NotNull(message = "User ID must not be null")
+        private Long userId;
+
+        @NotNull(message = "Council role must not be null")
+        private CouncilRole councilRole;
+    }
 }

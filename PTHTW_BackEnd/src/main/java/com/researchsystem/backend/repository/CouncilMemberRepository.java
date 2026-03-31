@@ -15,4 +15,6 @@ public interface CouncilMemberRepository extends JpaRepository<CouncilMember, Lo
     List<CouncilMember> findByUserEmail(String email);
 
     Optional<CouncilMember> findByCouncilCouncilIdAndUserEmail(Long councilId, String email);
+
+    Optional<CouncilMember> findByCouncilCouncilIdAndUserUserId(Long councilId, Long userId);
 }

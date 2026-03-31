@@ -5,6 +5,7 @@ import com.researchsystem.backend.dto.request.TopicStatusChangeRequest;
 import com.researchsystem.backend.dto.request.UpdateTopicRequest;
 import com.researchsystem.backend.dto.response.AttachmentResponse;
 import com.researchsystem.backend.dto.response.AuditLogResponse;
+import com.researchsystem.backend.dto.response.AttachmentDownloadPayload;
 import com.researchsystem.backend.dto.response.TopicDetailResponse;
 import com.researchsystem.backend.dto.response.TopicListResponse;
 import org.springframework.data.domain.Page;
@@ -85,4 +86,9 @@ public interface TopicService {
      * Returns all topics belonging to a specific department (paginated).
      */
     Page<TopicListResponse> getTopicsByDepartment(Long departmentId, Pageable pageable);
+
+    /**
+     * Loads a stored attachment after verifying the topic/attachment link and actor authorization.
+     */
+    AttachmentDownloadPayload loadAttachmentForDownload(Long topicId, Long attachmentId, String actorEmail);
 }

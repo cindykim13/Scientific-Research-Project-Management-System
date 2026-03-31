@@ -2,6 +2,7 @@ package com.researchsystem.backend.service.impl;
 
 import com.researchsystem.backend.domain.entity.User;
 import com.researchsystem.backend.dto.request.LoginRequest;
+import com.researchsystem.backend.dto.request.RegisterTestRequest;
 import com.researchsystem.backend.dto.request.UpdatePasswordRequest;
 import com.researchsystem.backend.dto.response.AuthResponse;
 import com.researchsystem.backend.dto.response.UserResponse;
@@ -12,8 +13,10 @@ import com.researchsystem.backend.service.AuthService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,9 +32,16 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+            );
+        } catch (BadCredentialsException ex) {
+            throw ex;
+        } catch (AuthenticationException ex) {
+            throw new BadCredentialsException("Invalid credentials", ex);
+        }
 
         String token = jwtTokenProvider.generateToken(authentication);
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
@@ -67,6 +77,25 @@ public class AuthServiceImpl implements AuthService {
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         user.setFirstLogin(false);
+        userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public void registerTestUser(RegisterTestRequest request) {
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new IllegalArgumentException("Email already in use: " + request.getEmail());
+        }
+
+        User user = User.builder()
+                .email(request.getEmail())
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName())
+                .systemRole(request.getSystemRole())
+                .isFirstLogin(false)
+                .active(true)
+                .build();
+
         userRepository.save(user);
     }
 

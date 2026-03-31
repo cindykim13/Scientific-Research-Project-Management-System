@@ -23,6 +23,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -92,8 +93,9 @@ public class CouncilController {
     @PostMapping("/{id}/members")
     @PreAuthorize("hasRole('MANAGER')")
     @Operation(
-            summary = "Assign expert members to a council",
-            description = "MANAGER assigns a list of user IDs as MEMBER-role council experts. " +
+            summary = "Assign expert members to a council with roles",
+            description = "MANAGER assigns experts with explicit PRESIDENT, SECRETARY, or MEMBER council roles. " +
+                          "Each user must have system role COUNCIL. At most one PRESIDENT and one SECRETARY per council. " +
                           "Enforces uniqueness and the investigator-exclusion rule."
     )
     @ApiResponses({
@@ -105,6 +107,44 @@ public class CouncilController {
             @PathVariable("id") Long id,
             @Valid @RequestBody CouncilAssignmentRequest request) {
         councilService.assignCouncilMembers(id, request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}/members/{userId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(
+            summary = "Remove a member from a council",
+            description = "MANAGER removes a mistakenly assigned expert from the council roster."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Member removed"),
+            @ApiResponse(responseCode = "404", description = "Council or membership not found"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER role required")
+    })
+    public ResponseEntity<Void> removeMember(
+            @PathVariable("id") Long councilId,
+            @PathVariable("userId") Long userId) {
+        councilService.removeCouncilMember(councilId, userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}/topics/{topicId}")
+    @PreAuthorize("hasRole('MANAGER')")
+    @Operation(
+            summary = "Unassign a topic from a council",
+            description = "MANAGER removes a topic from this council and returns it to DEPT_APPROVED status. " +
+                          "Only allowed while the topic is in PENDING_COUNCIL status."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Topic unassigned"),
+            @ApiResponse(responseCode = "404", description = "Council or topic not found"),
+            @ApiResponse(responseCode = "409", description = "Conflict — topic not in PENDING_COUNCIL or not on this council"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER role required")
+    })
+    public ResponseEntity<Void> removeTopicFromCouncil(
+            @PathVariable("id") Long councilId,
+            @PathVariable("topicId") Long topicId) {
+        councilService.removeTopicFromCouncil(councilId, topicId);
         return ResponseEntity.noContent().build();
     }
 

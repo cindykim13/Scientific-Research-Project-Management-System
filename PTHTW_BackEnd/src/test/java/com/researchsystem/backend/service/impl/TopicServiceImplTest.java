@@ -10,6 +10,7 @@ import com.researchsystem.backend.domain.entity.User;
 import com.researchsystem.backend.domain.enums.CouncilRole;
 import com.researchsystem.backend.domain.enums.ResearchType;
 import com.researchsystem.backend.domain.enums.SubmissionStatus;
+import com.researchsystem.backend.domain.enums.SystemRole;
 import com.researchsystem.backend.domain.enums.TopicStatus;
 import com.researchsystem.backend.dto.request.TopicCreationRequest;
 import com.researchsystem.backend.dto.request.TopicStatusChangeRequest;
@@ -158,6 +159,12 @@ class TopicServiceImplTest {
             request.setNewStatus(TopicStatus.PENDING_REVIEW);
             request.setFeedbackNote("Initial submission by investigator");
 
+            User investigator = new User();
+            investigator.setEmail("researcher@test.com");
+            investigator.setSystemRole(SystemRole.RESEARCHER);
+            draftTopic.setInvestigator(investigator);
+
+            when(userRepository.findByEmail("researcher@test.com")).thenReturn(Optional.of(investigator));
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
             when(topicRepository.save(any(Topic.class))).thenReturn(draftTopic);
             when(topicMapper.toDetailResponse(any(Topic.class))).thenReturn(detailResponse);
@@ -242,6 +249,11 @@ class TopicServiceImplTest {
             when(topicRepository.findById(10L)).thenReturn(Optional.of(topic));
             when(topicRepository.save(any())).thenReturn(topic);
             when(topicMapper.toDetailResponse(any())).thenReturn(detailResponse);
+
+            User adminActor = new User();
+            adminActor.setEmail("actor@test.com");
+            adminActor.setSystemRole(SystemRole.ADMIN);
+            when(userRepository.findByEmail("actor@test.com")).thenReturn(Optional.of(adminActor));
 
             // Act
             TopicDetailResponse result = topicService.changeTopicStatus(10L, request, "actor@test.com");
@@ -778,7 +790,7 @@ class TopicServiceImplTest {
 
             CouncilMember member1 = new CouncilMember();
             member1.setCouncilMemberId(1L);
-            member1.setCouncilRole(CouncilRole.CHAIRMAN);
+            member1.setCouncilRole(CouncilRole.PRESIDENT);
 
             CouncilMember member2 = new CouncilMember();
             member2.setCouncilMemberId(2L);

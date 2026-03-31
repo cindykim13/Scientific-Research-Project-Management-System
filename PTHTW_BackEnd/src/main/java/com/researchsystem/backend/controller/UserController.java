@@ -1,6 +1,8 @@
 package com.researchsystem.backend.controller;
 
+import com.researchsystem.backend.dto.request.CreateDeptHeadRequest;
 import com.researchsystem.backend.dto.request.CreateManagerRequest;
+import com.researchsystem.backend.dto.request.CreateResearcherRequest;
 import com.researchsystem.backend.dto.request.UpdateUserStatusRequest;
 import com.researchsystem.backend.dto.response.UserResponse;
 import com.researchsystem.backend.service.UserService;
@@ -49,6 +51,38 @@ public class UserController {
     })
     public ResponseEntity<UserResponse> createManager(@Valid @RequestBody CreateManagerRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.createManager(request));
+    }
+
+    @PostMapping("/researchers")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+            summary = "Create a new RESEARCHER account",
+            description = "Admin-only endpoint that provisions a principal investigator with initial password " +
+                          "and assigns them to a department."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Researcher account created"),
+            @ApiResponse(responseCode = "400", description = "Bad Request — validation or duplicate email"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — ADMIN role required")
+    })
+    public ResponseEntity<UserResponse> createResearcher(@Valid @RequestBody CreateResearcherRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.createResearcher(request));
+    }
+
+    @PostMapping("/dept-heads")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+            summary = "Create a new DEPT_HEAD account",
+            description = "Admin-only endpoint that provisions a department head with initial password " +
+                          "and assigns them to a department."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Department head account created"),
+            @ApiResponse(responseCode = "400", description = "Bad Request — validation or duplicate email"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — ADMIN role required")
+    })
+    public ResponseEntity<UserResponse> createDeptHead(@Valid @RequestBody CreateDeptHeadRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.createDeptHead(request));
     }
 
     @GetMapping("/")

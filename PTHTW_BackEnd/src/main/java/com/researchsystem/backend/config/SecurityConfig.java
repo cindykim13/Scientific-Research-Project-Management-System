@@ -84,8 +84,8 @@ public class SecurityConfig {
                     "/error"
                 ).permitAll()
 
-                // Login endpoint
-                .requestMatchers("/api/v1/auth/login").permitAll()
+                // Public auth endpoints
+                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register-test").permitAll()
 
                 // All other requests require a valid JWT
                 .anyRequest().authenticated()

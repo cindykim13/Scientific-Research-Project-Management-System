@@ -15,6 +15,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByEmail(String email);
 
+    long countByActiveTrue();
+
     @Query("""
             SELECT cm.user FROM CouncilMember cm
             LEFT JOIN Evaluation e ON cm.id = e.councilMember.id

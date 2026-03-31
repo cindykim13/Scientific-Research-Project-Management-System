@@ -1,6 +1,8 @@
 package com.researchsystem.backend.service;
 
+import com.researchsystem.backend.dto.request.CreateDeptHeadRequest;
 import com.researchsystem.backend.dto.request.CreateManagerRequest;
+import com.researchsystem.backend.dto.request.CreateResearcherRequest;
 import com.researchsystem.backend.dto.request.UpdateUserStatusRequest;
 import com.researchsystem.backend.dto.response.UserResponse;
 import org.springframework.data.domain.Page;
@@ -15,6 +17,16 @@ public interface UserService {
      * @return the persisted manager's profile
      */
     UserResponse createManager(CreateManagerRequest request);
+
+    /**
+     * Creates a RESEARCHER account (principal investigator). Callable only by ADMIN.
+     */
+    UserResponse createResearcher(CreateResearcherRequest request);
+
+    /**
+     * Creates a DEPT_HEAD account. Callable only by ADMIN.
+     */
+    UserResponse createDeptHead(CreateDeptHeadRequest request);
 
     /**
      * Returns a paginated list of all users in the system.

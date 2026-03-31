@@ -6,6 +6,7 @@ import com.researchsystem.backend.domain.entity.Topic;
 import com.researchsystem.backend.domain.entity.User;
 import com.researchsystem.backend.domain.enums.CouncilRole;
 import com.researchsystem.backend.domain.enums.SubmissionStatus;
+import com.researchsystem.backend.domain.enums.SystemRole;
 import com.researchsystem.backend.domain.enums.TopicStatus;
 import com.researchsystem.backend.dto.request.AssignTopicsRequest;
 import com.researchsystem.backend.dto.request.CouncilAssignmentRequest;
@@ -31,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -52,37 +54,102 @@ public class CouncilServiceImpl implements CouncilService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Council not found with id: " + councilId));
 
-        List<Long> expertIds = request.getExpertUserIds();
-        Set<Long> uniqueIds = new HashSet<>(expertIds);
-
-        if (uniqueIds.size() < expertIds.size()) {
-            throw new IllegalArgumentException("Duplicate experts found in the request");
+        List<CouncilAssignmentRequest.ExpertAssignment> assignments = request.getMembers();
+        Set<Long> uniqueIds = new HashSet<>();
+        for (CouncilAssignmentRequest.ExpertAssignment ea : assignments) {
+            if (!uniqueIds.add(ea.getUserId())) {
+                throw new IllegalArgumentException("Duplicate user IDs in the request");
+            }
         }
 
-        // Investigator-exclusion rule: no investigator of any topic assigned to
-        // this council may also sit on the council as an expert.
+        List<CouncilMember> existing = councilMemberRepository.findByCouncilCouncilId(councilId);
+        Set<Long> existingUserIds = new HashSet<>();
+        for (CouncilMember cm : existing) {
+            existingUserIds.add(cm.getUser().getUserId());
+        }
+
+        long presidentsInRequest = assignments.stream()
+                .filter(a -> a.getCouncilRole() == CouncilRole.PRESIDENT)
+                .count();
+        long secretariesInRequest = assignments.stream()
+                .filter(a -> a.getCouncilRole() == CouncilRole.SECRETARY)
+                .count();
+        if (presidentsInRequest > 1 || secretariesInRequest > 1) {
+            throw new IllegalArgumentException("At most one PRESIDENT and one SECRETARY may be assigned per request batch");
+        }
+
+        long existingPresidents = existing.stream().filter(m -> m.getCouncilRole() == CouncilRole.PRESIDENT).count();
+        long existingSecretaries = existing.stream().filter(m -> m.getCouncilRole() == CouncilRole.SECRETARY).count();
+        if (existingPresidents + presidentsInRequest > 1) {
+            throw new IllegalArgumentException("Council already has a PRESIDENT");
+        }
+        if (existingSecretaries + secretariesInRequest > 1) {
+            throw new IllegalArgumentException("Council already has a SECRETARY");
+        }
+
+        for (CouncilAssignmentRequest.ExpertAssignment ea : assignments) {
+            if (existingUserIds.contains(ea.getUserId())) {
+                throw new IllegalArgumentException("User " + ea.getUserId() + " is already assigned to this council");
+            }
+        }
+
         for (Topic topic : council.getTopics()) {
             Long investigatorId = topic.getInvestigator().getUserId();
-            if (uniqueIds.contains(investigatorId)) {
-                throw new IllegalArgumentException(
-                        "Investigator cannot be in their own council");
+            for (CouncilAssignmentRequest.ExpertAssignment ea : assignments) {
+                if (Objects.equals(ea.getUserId(), investigatorId)) {
+                    throw new IllegalArgumentException("Investigator cannot be in their own council");
+                }
             }
         }
 
         List<CouncilMember> newMembers = new ArrayList<>();
-        for (Long userId : expertIds) {
-            User expert = userRepository.findById(userId)
+        for (CouncilAssignmentRequest.ExpertAssignment ea : assignments) {
+            User expert = userRepository.findById(ea.getUserId())
                     .orElseThrow(() -> new EntityNotFoundException(
-                            "User not found with id: " + userId));
+                            "User not found with id: " + ea.getUserId()));
+            if (expert.getSystemRole() != SystemRole.COUNCIL) {
+                throw new IllegalArgumentException("User " + ea.getUserId() + " must have system role COUNCIL");
+            }
 
             newMembers.add(CouncilMember.builder()
                     .council(council)
                     .user(expert)
-                    .councilRole(CouncilRole.MEMBER)
+                    .councilRole(ea.getCouncilRole())
                     .build());
         }
 
         councilMemberRepository.saveAll(newMembers);
+    }
+
+    @Override
+    public void removeCouncilMember(Long councilId, Long userId) {
+        councilRepository.findById(councilId)
+                .orElseThrow(() -> new EntityNotFoundException("Council not found with id: " + councilId));
+        CouncilMember member = councilMemberRepository
+                .findByCouncilCouncilIdAndUserUserId(councilId, userId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "No council membership for user " + userId + " on council " + councilId));
+        councilMemberRepository.delete(member);
+    }
+
+    @Override
+    public void removeTopicFromCouncil(Long councilId, Long topicId) {
+        councilRepository.findById(councilId)
+                .orElseThrow(() -> new EntityNotFoundException("Council not found with id: " + councilId));
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + topicId));
+        if (topic.getAssignedCouncil() == null
+                || !Objects.equals(topic.getAssignedCouncil().getCouncilId(), councilId)) {
+            throw new IllegalStateException("Topic " + topicId + " is not assigned to council " + councilId);
+        }
+        if (topic.getTopicStatus() != TopicStatus.PENDING_COUNCIL) {
+            throw new IllegalStateException(
+                    "Only topics in PENDING_COUNCIL status can be unassigned from a council. Current: "
+                            + topic.getTopicStatus());
+        }
+        topic.setAssignedCouncil(null);
+        topic.setTopicStatus(TopicStatus.DEPT_APPROVED);
+        topicRepository.save(topic);
     }
 
     @Override

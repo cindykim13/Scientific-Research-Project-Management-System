@@ -7,10 +7,12 @@ import com.researchsystem.backend.domain.entity.Topic;
 import com.researchsystem.backend.domain.entity.TopicAttachment;
 import com.researchsystem.backend.domain.entity.User;
 import com.researchsystem.backend.domain.enums.SubmissionStatus;
+import com.researchsystem.backend.domain.enums.SystemRole;
 import com.researchsystem.backend.domain.enums.TopicStatus;
 import com.researchsystem.backend.dto.request.TopicCreationRequest;
 import com.researchsystem.backend.dto.request.TopicStatusChangeRequest;
 import com.researchsystem.backend.dto.request.UpdateTopicRequest;
+import com.researchsystem.backend.dto.response.AttachmentDownloadPayload;
 import com.researchsystem.backend.dto.response.AttachmentResponse;
 import com.researchsystem.backend.dto.response.AuditLogResponse;
 import com.researchsystem.backend.dto.response.TopicDetailResponse;
@@ -24,6 +26,9 @@ import com.researchsystem.backend.repository.TopicRepository;
 import com.researchsystem.backend.repository.UserRepository;
 import com.researchsystem.backend.service.AuditLogService;
 import com.researchsystem.backend.service.TopicService;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.security.access.AccessDeniedException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,12 +44,15 @@ import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.net.MalformedURLException;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+
 
 @Service
 @Transactional
@@ -132,6 +140,10 @@ public class TopicServiceImpl implements TopicService {
                     String.format("Invalid state transition: cannot move from %s to %s.",
                             currentStatus, targetStatus));
         }
+
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + actorEmail));
+        enforceStatusChangeAuthorization(actor, topic, currentStatus, targetStatus);
 
         auditLogService.recordLog(topicId, currentStatus, targetStatus,
                 request.getFeedbackNote(), actorEmail);
@@ -233,8 +245,10 @@ public class TopicServiceImpl implements TopicService {
         topicRepository.save(topic);
 
         return AttachmentResponse.builder()
+                .attachmentId(attachment.getAttachmentId())
                 .documentType(attachment.getDocumentType())
                 .fileUri(attachment.getFileUri())
+                .uploadedAt(attachment.getUploadedAt())
                 .fileVersion(attachment.getFileVersion())
                 .build();
     }
@@ -279,5 +293,102 @@ public class TopicServiceImpl implements TopicService {
     public Page<TopicListResponse> getTopicsByDepartment(Long departmentId, Pageable pageable) {
         return topicRepository.findByManagingDepartmentDepartmentId(departmentId, pageable)
                 .map(topicMapper::toListResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AttachmentDownloadPayload loadAttachmentForDownload(Long topicId, Long attachmentId, String actorEmail) {
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + topicId));
+
+        TopicAttachment attachment = topic.getTopicAttachments().stream()
+                .filter(a -> Objects.equals(a.getAttachmentId(), attachmentId))
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Attachment not found with id: " + attachmentId + " for topic: " + topicId));
+
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + actorEmail));
+
+        if (!mayDownloadAttachment(actor, topic)) {
+            throw new AccessDeniedException("Not allowed to download this attachment");
+        }
+
+        try {
+            Path path = Paths.get(attachment.getFileUri()).normalize();
+            Resource resource = new UrlResource(path.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                throw new EntityNotFoundException("File no longer available on disk");
+            }
+            String filename = path.getFileName().toString();
+            String contentType = attachment.getDocumentType() != null ? attachment.getDocumentType() : "application/octet-stream";
+            return new AttachmentDownloadPayload(resource, contentType, filename);
+        } catch (MalformedURLException e) {
+            throw new IllegalStateException("Invalid stored file path", e);
+        }
+    }
+
+    private void enforceStatusChangeAuthorization(User actor, Topic topic,
+                                                  TopicStatus from, TopicStatus to) {
+        if (actor.getSystemRole() == SystemRole.ADMIN) {
+            return;
+        }
+
+        boolean allowed = false;
+        if (from == TopicStatus.DRAFT && to == TopicStatus.PENDING_REVIEW) {
+            allowed = actor.getSystemRole() == SystemRole.RESEARCHER && investigatorMatches(actor, topic);
+        } else if (from == TopicStatus.PENDING_REVIEW
+                && (to == TopicStatus.DEPT_APPROVED || to == TopicStatus.DEPT_REJECTED)) {
+            allowed = actor.getSystemRole() == SystemRole.DEPT_HEAD && sameDepartment(actor, topic);
+        } else if (from == TopicStatus.DEPT_APPROVED && to == TopicStatus.PENDING_COUNCIL) {
+            allowed = actor.getSystemRole() == SystemRole.MANAGER;
+        } else if (from == TopicStatus.DEPT_REJECTED && to == TopicStatus.DRAFT) {
+            allowed = actor.getSystemRole() == SystemRole.RESEARCHER && investigatorMatches(actor, topic);
+        } else if (from == TopicStatus.PENDING_COUNCIL && to == TopicStatus.COUNCIL_REVIEWED) {
+            allowed = actor.getSystemRole() == SystemRole.MANAGER;
+        } else if (from == TopicStatus.COUNCIL_REVIEWED
+                && (to == TopicStatus.APPROVED || to == TopicStatus.REJECTED
+                || to == TopicStatus.REVISION_REQUIRED)) {
+            allowed = actor.getSystemRole() == SystemRole.MANAGER;
+        } else if (from == TopicStatus.REVISION_REQUIRED && to == TopicStatus.PENDING_REVIEW) {
+            allowed = actor.getSystemRole() == SystemRole.RESEARCHER && investigatorMatches(actor, topic);
+        }
+
+        if (!allowed) {
+            throw new AccessDeniedException("Current role is not permitted for this status transition.");
+        }
+    }
+
+    private static boolean investigatorMatches(User actor, Topic topic) {
+        return topic.getInvestigator() != null
+                && actor.getEmail().equals(topic.getInvestigator().getEmail());
+    }
+
+    private static boolean sameDepartment(User actor, Topic topic) {
+        if (actor.getDepartment() == null || topic.getManagingDepartment() == null) {
+            return false;
+        }
+        return Objects.equals(
+                actor.getDepartment().getDepartmentId(),
+                topic.getManagingDepartment().getDepartmentId());
+    }
+
+    private boolean mayDownloadAttachment(User actor, Topic topic) {
+        if (actor.getSystemRole() == SystemRole.ADMIN || actor.getSystemRole() == SystemRole.MANAGER) {
+            return true;
+        }
+        if (actor.getSystemRole() == SystemRole.RESEARCHER && investigatorMatches(actor, topic)) {
+            return true;
+        }
+        if (actor.getSystemRole() == SystemRole.DEPT_HEAD && sameDepartment(actor, topic)) {
+            return true;
+        }
+        if (actor.getSystemRole() == SystemRole.COUNCIL && topic.getAssignedCouncil() != null) {
+            return councilMemberRepository
+                    .findByCouncilCouncilIdAndUserEmail(
+                            topic.getAssignedCouncil().getCouncilId(), actor.getEmail())
+                    .isPresent();
+        }
+        return false;
     }
 }
