@@ -1,5 +1,18 @@
+// File: src/pages/SciManDashboard.jsx
+
 import { useState, useEffect } from "react";
 import logoOU from "../assets/ADMIN/logo-ou.svg";
+
+// KÉO DỮ LIỆU TỪ FILE MOCK VÀO ĐÂY
+import {
+  FACULTIES,
+  SCHOOL_YEARS,
+  PAGE_SIZE,
+  STATUS_CFG,
+  CHECKLIST_ITEMS,
+  MOCK_FACULTY_NOTES,
+  INITIAL_TOPICS
+} from "../mocks/sciManMock";
 
 // ─── SVG Factory ────────────────────────────────────────────────────────────────
 
@@ -31,43 +44,6 @@ const IcTag       = p => <Svg {...p} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.58
 const IcInbox     = p => <Svg {...p} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />;
 const IcEye       = p => <Svg {...p} d={["M15 12a3 3 0 11-6 0 3 3 0 016 0z", "M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"]} />;
 const IcSparkle   = p => <Svg {...p} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />;
-
-// ─── Constants ───────────────────────────────────────────────────────────────────
-
-const FACULTIES    = ["CNTT", "Kỹ thuật", "Kinh tế", "Khoa học tự nhiên", "Y dược"];
-const SCHOOL_YEARS = ["2025-2026", "2024-2025", "2023-2024"];
-const PAGE_SIZE    = 5;
-
-const STATUS_CFG = {
-  pending_check:    { label: "Chờ kiểm tra",    bg: "bg-yellow-100", text: "text-yellow-800" },
-  pending_council:  { label: "Chờ lập HĐ",      bg: "bg-blue-100",   text: "text-blue-700"   },
-  council_done:     { label: "Đã lập HĐ",        bg: "bg-green-100",  text: "text-green-700"  },
-  needs_supplement: { label: "Yêu cầu bổ sung", bg: "bg-red-100",    text: "text-red-700"    },
-};
-
-const CHECKLIST_ITEMS = [
-  { id: "format",     label: "Hồ sơ đúng biểu mẫu quy định"             },
-  { id: "leader",     label: "Chủ nhiệm đề tài đủ điều kiện chủ trì"     },
-  { id: "noPenalty",  label: "Không vi phạm / không nợ đọng đề tài cũ"   },
-  { id: "budget",     label: "Dự toán kinh phí đúng tiêu chuẩn quy định" },
-  { id: "signatures", label: "Đầy đủ chữ ký và xác nhận từ Khoa"         },
-];
-
-const MOCK_FACULTY_NOTES =
-  "Trưởng Khoa đã xem xét và phê duyệt về mặt học thuật. Nội dung đề tài phù hợp với định hướng nghiên cứu của Khoa. Chủ nhiệm đề tài có năng lực và kinh nghiệm chuyên môn tốt. Đề nghị Phòng QLKH kiểm tra thủ tục hành chính và xử lý theo quy định.";
-
-const INITIAL_TOPICS = [
-  { id: 1,  code: "DT001", title: "Nghiên cứu ứng dụng AI trong giáo dục đại học Việt Nam",              pi: "Nguyễn Thị Hoa",   faculty: "CNTT",              year: "2025-2026", status: "pending_check"    },
-  { id: 2,  code: "DT002", title: "Phát triển hệ thống IoT thông minh cho nông nghiệp bền vững",         pi: "Trần Văn Minh",    faculty: "Kỹ thuật",          year: "2025-2026", status: "pending_council"  },
-  { id: 3,  code: "DT003", title: "Blockchain trong quản lý chuỗi cung ứng dược phẩm Việt Nam",          pi: "Lê Thị Lan",       faculty: "Kinh tế",           year: "2025-2026", status: "needs_supplement" },
-  { id: 4,  code: "DT004", title: "Mô hình học máy dự đoán và phòng ngừa dịch bệnh đô thị",             pi: "Phạm Quốc Hùng",   faculty: "CNTT",              year: "2025-2026", status: "pending_check"    },
-  { id: 5,  code: "DT005", title: "Tối ưu hóa thuật toán xử lý ngôn ngữ tự nhiên tiếng Việt",           pi: "Hoàng Thị Thu",    faculty: "CNTT",              year: "2025-2026", status: "council_done"     },
-  { id: 6,  code: "DT006", title: "Nghiên cứu vật liệu nano ứng dụng trong y học tái tạo",              pi: "Đặng Văn Long",    faculty: "Y dược",            year: "2024-2025", status: "pending_council"  },
-  { id: 7,  code: "DT007", title: "Phân tích tác động kinh tế của chuyển đổi số doanh nghiệp",          pi: "Bùi Thị Duyên",    faculty: "Kinh tế",           year: "2024-2025", status: "council_done"     },
-  { id: 8,  code: "DT008", title: "Ứng dụng GIS và viễn thám trong quản lý tài nguyên nước",            pi: "Võ Minh Khoa",     faculty: "Khoa học tự nhiên", year: "2024-2025", status: "pending_check"    },
-  { id: 9,  code: "DT009", title: "Nghiên cứu giải pháp năng lượng tái tạo cho khu vực nông thôn",      pi: "Nguyễn Hoàng Anh", faculty: "Kỹ thuật",          year: "2025-2026", status: "needs_supplement" },
-  { id: 10, code: "DT010", title: "Xây dựng mô hình dự báo thị trường chứng khoán bằng Deep Learning", pi: "Trịnh Thị Mai",    faculty: "Kinh tế",           year: "2024-2025", status: "pending_check"    },
-];
 
 // ─── Toast ────────────────────────────────────────────────────────────────────────
 
@@ -597,9 +573,6 @@ const AdminCheckView = ({ topic, onBack, onDecision }) => {
 
   const toggleCheck = id => setChecks(c => ({ ...c, [id]: !c[id] }));
 
-  // ── Auto-fill feature ──
-  // When the user focuses the empty textarea, auto-populate with a template
-  // listing all unchecked checklist items so the reviewer doesn't need to type manually.
   const handleFeedbackFocus = () => {
     if (feedback.trim() !== "") return;
     const unchecked = CHECKLIST_ITEMS.filter(item => !checks[item.id]);
@@ -857,7 +830,6 @@ const AdminCheckView = ({ topic, onBack, onDecision }) => {
             <div className="flex flex-col gap-3 pb-2">
               <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Quyết định</h4>
 
-              {/* Button A: Request supplement — enabled only when feedback has text */}
               <button
                 disabled={!canRevision}
                 onClick={() => onDecision(topic.id, "supplement")}
@@ -871,7 +843,6 @@ const AdminCheckView = ({ topic, onBack, onDecision }) => {
                 Yêu cầu bổ sung
               </button>
 
-              {/* Button B: Approve and forward — enabled only when ALL checkboxes are checked */}
               <button
                 disabled={!canApprove}
                 onClick={() => setConfirmOpen(true)}
@@ -885,7 +856,6 @@ const AdminCheckView = ({ topic, onBack, onDecision }) => {
                 Thủ tục hợp lệ — Lập Hội đồng
               </button>
 
-              {/* Logic hint card */}
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                 <p className="text-[10px] text-gray-500 leading-relaxed">
                   <strong className="text-gray-600">Yêu cầu bổ sung:</strong> Cần nhập ý kiến phản hồi.<br />
@@ -897,7 +867,6 @@ const AdminCheckView = ({ topic, onBack, onDecision }) => {
         </div>
       </div>
 
-      {/* Confirmation modal */}
       {confirmOpen && (
         <ConfirmModal
           onConfirm={handleConfirm}

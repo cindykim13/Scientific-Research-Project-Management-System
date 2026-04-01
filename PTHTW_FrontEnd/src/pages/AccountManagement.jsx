@@ -1,5 +1,16 @@
+// File: src/pages/AccountManagement.jsx
+
 import { useState, useEffect } from "react";
 import logoOU from "../assets/ADMIN/logo-ou.svg";
+
+// KÉO DỮ LIỆU TỪ FILE MOCK VÀO ĐÂY
+import {
+  ROLE_OPTIONS,
+  CONFIRM_CONFIG,
+  INITIAL_USERS,
+  PAGE_SIZE,
+  TABLE_HEADERS,
+} from "../mocks/accountMock";
 
 // ─── Icons ─────────────────────────────────────────────────────────────────────
 
@@ -99,8 +110,6 @@ const ModalOverlay = ({ onClose, children }) => {
 };
 
 // ─── Account Form Modal ────────────────────────────────────────────────────────
-
-const ROLE_OPTIONS = ["Chuyên viên", "Trưởng phòng", "Phó phòng", "Giám đốc"];
 
 const FormField = ({ label, required, children }) => (
   <div className="flex flex-col gap-1.5">
@@ -210,7 +219,7 @@ const AccountFormModal = ({ mode, user, onClose, onSave }) => {
             </button>
           </div>
           
-          {/* Security Note Alert - Added explicitly for zero-knowledge security context */}
+          {/* Security Note Alert */}
           {!isEdit && (
             <div className="mt-1 flex gap-2 items-start bg-blue-50/50 border border-blue-100/50 p-3 rounded-lg">
               <IconInfo />
@@ -227,27 +236,13 @@ const AccountFormModal = ({ mode, user, onClose, onSave }) => {
 
 // ─── Confirm Action Modal ──────────────────────────────────────────────────────
 
-const CONFIRM_CONFIG = {
-  lock: {
-    title: "Xác nhận khoá tài khoản",
-    description: "Bạn có chắc chắn muốn khoá quyền truy cập của tài khoản này không? Nhân viên sẽ không thể đăng nhập hệ thống cho đến khi được kích hoạt lại.",
-    icon: <IconWarningTriangle className="w-11 h-11 text-amber-500" />,
-    iconBg: "bg-amber-50",
-    confirmLabel: "Khoá tài khoản",
-    confirmCls: "bg-red-600 hover:bg-red-700",
-  },
-  activate: {
-    title: "Xác nhận kích hoạt tài khoản",
-    description: "Bạn có chắc chắn muốn kích hoạt lại tài khoản này không? Nhân viên sẽ được phép đăng nhập và sử dụng hệ thống.",
-    icon: <IconShieldCheck className="w-11 h-11 text-green-600" />,
-    iconBg: "bg-green-50",
-    confirmLabel: "Kích hoạt",
-    confirmCls: "bg-green-600 hover:bg-green-700",
-  },
-};
-
 const ConfirmActionModal = ({ action, user, onClose, onConfirm }) => {
   const cfg = CONFIRM_CONFIG[action];
+  
+  // Re-assign icons because they can't be easily serialized into the mock file
+  const actionIcon = action === 'lock' 
+    ? <IconWarningTriangle className="w-11 h-11 text-amber-500" />
+    : <IconShieldCheck className="w-11 h-11 text-green-600" />;
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -265,7 +260,7 @@ const ConfirmActionModal = ({ action, user, onClose, onConfirm }) => {
         {/* Body */}
         <div className="flex flex-col items-center text-center px-8 pb-6 gap-4">
           <div className={`w-20 h-20 rounded-full flex items-center justify-center ${cfg.iconBg}`}>
-            {cfg.icon}
+            {actionIcon}
           </div>
 
           <div>
@@ -445,19 +440,6 @@ const Pagination = ({ currentPage, totalPages, onChange }) => {
     </div>
   );
 };
-
-// ─── Sample Data ───────────────────────────────────────────────────────────────
-
-const INITIAL_USERS = Array.from({ length: 13 }, (_, i) => ({
-  id: i + 1,
-  name: "Nguyễn Thị Hoài Thương",
-  email: "2351010207thuong@ou.edu.vn",
-  role: "Chuyên viên",
-  status: i % 3 === 1 ? "locked" : "active",
-}));
-
-const PAGE_SIZE = 5;
-const TABLE_HEADERS = ["Họ Tên", "Email công vụ", "Chức vụ", "Trạng thái", "Hành động"];
 
 // ─── User Table ────────────────────────────────────────────────────────────────
 

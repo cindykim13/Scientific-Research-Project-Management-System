@@ -1,5 +1,16 @@
+// File: src/pages/SecretaryDashboard.jsx
+
 import { useState, useEffect } from "react";
 import logoOU from "../assets/ADMIN/logo-ou.svg";
+
+// KÉO DỮ LIỆU TỪ FILE MOCK VÀO ĐÂY
+import {
+  SECRETARY,
+  MOCK_MEETING,
+  ROLE_CFG,
+  DASHBOARD_STATUS_CFG,
+  INITIAL_MEMBERS,
+} from "../mocks/secretaryMock";
 
 // ─── SVG Factory ─────────────────────────────────────────────────────────────────
 
@@ -25,45 +36,6 @@ const IcLoader   = p => <Svg {...p} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.58
 const IcDoc      = p => <Svg {...p} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />;
 const IcClock    = p => <Svg {...p} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />;
 const IcMapPin   = p => <Svg {...p} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />;
-
-// ─── Constants ───────────────────────────────────────────────────────────────────
-
-const SECRETARY = {
-  name:     "PGS.TS. Trần Thị Bình",
-  initials: "TB",
-  role:     "Thư ký Hội đồng",
-  avatarGrad: "from-blue-600 to-blue-800",
-};
-
-const MOCK_MEETING = {
-  topicCode: "DT001",
-  topicTitle: "Nghiên cứu Hệ thống AI trong Hỗ trợ Chẩn đoán Y tế",
-  council:   "HĐ CNTT – 01/2026",
-  datetime:  "08:00 – 20/10/2026",
-  location:  "Phòng Họp Trực tuyến A",
-};
-
-const ROLE_CFG = {
-  "Chủ tịch":    { bg: "bg-rose-800",   text: "text-white",   pill: "bg-rose-50 text-rose-800 border-rose-200"   },
-  "Thư ký":      { bg: "bg-blue-800",   text: "text-white",   pill: "bg-blue-50 text-blue-800 border-blue-200"   },
-  "Phản biện 1": { bg: "bg-orange-500", text: "text-white",   pill: "bg-orange-50 text-orange-700 border-orange-200" },
-  "Phản biện 2": { bg: "bg-amber-500",  text: "text-white",   pill: "bg-amber-50 text-amber-700 border-amber-200"   },
-  "Ủy viên":     { bg: "bg-gray-500",   text: "text-white",   pill: "bg-gray-50 text-gray-600 border-gray-200"   },
-};
-
-const DASHBOARD_STATUS_CFG = {
-  IN_PROGRESS:     { label: "Đang tiến hành",   bg: "bg-yellow-100", text: "text-yellow-800", dot: "bg-yellow-400" },
-  READY:           { label: "Chờ lập biên bản", bg: "bg-blue-100",   text: "text-blue-700",   dot: "bg-blue-400"   },
-  MINUTES_CREATED: { label: "Đã có Biên bản",   bg: "bg-green-100",  text: "text-green-700",  dot: "bg-green-400"  },
-};
-
-const INITIAL_MEMBERS = [
-  { id: 1, name: "GS.TS. Nguyễn Văn An",   role: "Chủ tịch",    status: "done",    isSelf: false, initials: "NA", avatarGrad: "from-rose-500 to-rose-700"    },
-  { id: 2, name: "PGS.TS. Trần Thị Bình",  role: "Thư ký",      status: "pending", isSelf: true,  initials: "TB", avatarGrad: "from-blue-500 to-blue-700"    },
-  { id: 3, name: "TS. Lê Minh Cường",       role: "Phản biện 1", status: "done",    isSelf: false, initials: "LC", avatarGrad: "from-orange-400 to-orange-600" },
-  { id: 4, name: "GS.TS. Phạm Quốc Dũng",  role: "Phản biện 2", status: "pending", isSelf: false, initials: "PD", avatarGrad: "from-amber-400 to-amber-600"   },
-  { id: 5, name: "TS. Hoàng Thị Oanh",      role: "Ủy viên",     status: "pending", isSelf: false, initials: "HO", avatarGrad: "from-gray-400 to-gray-500"    },
-];
 
 // ─── Toast ───────────────────────────────────────────────────────────────────────
 
@@ -312,11 +284,6 @@ const MemberStatusBadge = ({ status }) => (
 );
 
 // ─── Member Tracking Table ────────────────────────────────────────────────────────
-// Action column applies one of 4 conditions per row:
-// A) Other + pending  → "Gửi nhắc nhở" (disabled after click, "Đã nhắc nhở")
-// B) Other + done     → "Xem phiếu" ghost button
-// C) Self  + pending  → "Tiến hành Đánh giá" primary blue (with loading simulation)
-// D) Self  + done     → "Hoàn tất ✓" read-only indicator
 
 const MemberTable = ({ members, remindedIds, evaluating, onRemind, onEvaluate, disabled }) => {
   const HEADERS = ["Họ và tên", "Vai trò", "Trạng thái Phiếu", "Tác vụ"];
@@ -394,7 +361,7 @@ const MemberTable = ({ members, remindedIds, evaluating, onRemind, onEvaluate, d
 
                 {/* Dynamic action column */}
                 <td className="py-4 px-5 text-center">
-                  {/* Condition C: Self + pending → "Tiến hành Đánh giá" */}
+                  {/* Self + pending */}
                   {member.isSelf && member.status === "pending" && (
                     <button
                       onClick={onEvaluate}
@@ -411,7 +378,7 @@ const MemberTable = ({ members, remindedIds, evaluating, onRemind, onEvaluate, d
                     </button>
                   )}
 
-                  {/* Condition D: Self + done → completed indicator */}
+                  {/* Self + done */}
                   {member.isSelf && member.status === "done" && (
                     <span className="inline-flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 px-2.5 py-1 rounded-full border border-green-200">
                       <IcCheck cls="w-3 h-3" />
@@ -419,7 +386,7 @@ const MemberTable = ({ members, remindedIds, evaluating, onRemind, onEvaluate, d
                     </span>
                   )}
 
-                  {/* Condition A: Other + pending → "Gửi nhắc nhở" */}
+                  {/* Other + pending */}
                   {!member.isSelf && member.status === "pending" && (
                     <button
                       onClick={() => onRemind(member.id, member.name)}
@@ -436,7 +403,7 @@ const MemberTable = ({ members, remindedIds, evaluating, onRemind, onEvaluate, d
                     </button>
                   )}
 
-                  {/* Condition B: Other + done → "Xem phiếu" */}
+                  {/* Other + done */}
                   {!member.isSelf && member.status === "done" && (
                     <button className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition border border-gray-200">
                       <IcEye cls="w-3.5 h-3.5" />
@@ -454,7 +421,6 @@ const MemberTable = ({ members, remindedIds, evaluating, onRemind, onEvaluate, d
 };
 
 // ─── Gatekeeper Footer ────────────────────────────────────────────────────────────
-// Renders one of 3 distinct states based on dashboardState.
 
 const GatekeeperFooter = ({ dashboardState, pendingCount, onClickMinutes }) => {
   const isDisabled       = dashboardState === "IN_PROGRESS";
@@ -493,7 +459,6 @@ const GatekeeperFooter = ({ dashboardState, pendingCount, onClickMinutes }) => {
 
       {/* Right: action button */}
       <div className="flex-shrink-0">
-        {/* State 1 & 2: "Lập Biên bản Hội đồng" */}
         {!isMinutesCreated && (
           <button
             disabled={isDisabled}
@@ -508,8 +473,6 @@ const GatekeeperFooter = ({ dashboardState, pendingCount, onClickMinutes }) => {
             Lập Biên bản Hội đồng
           </button>
         )}
-
-        {/* State 3: "Xem / Cập nhật Biên bản" */}
         {isMinutesCreated && (
           <button className="flex items-center gap-2 h-10 px-6 rounded-lg text-sm font-bold border-2 border-[#1a5ea8] text-[#1a5ea8] hover:bg-blue-50 transition">
             <IcEdit cls="w-4 h-4" />
@@ -525,25 +488,23 @@ const GatekeeperFooter = ({ dashboardState, pendingCount, onClickMinutes }) => {
 
 const SecretaryDashboard = () => {
   const [members,        setMembers]        = useState(INITIAL_MEMBERS);
-  const [dashboardState, setDashboardState] = useState("IN_PROGRESS");
+  
+  // FIX ESLINT CASCADING RENDERS: Tính toán trạng thái trực tiếp từ state thay vì dùng useEffect
+  const [isMinutesCreated, setIsMinutesCreated] = useState(false);
   const [remindedIds,    setRemindedIds]    = useState([]);
   const [evaluating,     setEvaluating]     = useState(false);
   const [confirmOpen,    setConfirmOpen]    = useState(false);
   const [navActive,      setNavActive]      = useState("session");
   const [toast,          setToast]          = useState({ visible: false, msg: "", type: "success" });
 
-  // ── Derived counts ──
   const completedCount = members.filter(m => m.status === "done").length;
   const pendingCount   = members.length - completedCount;
 
-  // ── Auto-update dashboardState when member progress changes ──
-  // Only transition between IN_PROGRESS and READY; never override MINUTES_CREATED.
-  useEffect(() => {
-    if (dashboardState === "MINUTES_CREATED") return;
-    setDashboardState(completedCount === members.length ? "READY" : "IN_PROGRESS");
-  }, [completedCount, members.length]);
+  // Derived State (Best Practice): Tự động xác định trạng thái màn hình
+  const dashboardState = isMinutesCreated 
+    ? "MINUTES_CREATED" 
+    : (completedCount === members.length ? "READY" : "IN_PROGRESS");
 
-  // ── Toast auto-dismiss ──
   useEffect(() => {
     if (toast.visible) {
       const t = setTimeout(() => setToast({ visible: false, msg: "", type: "success" }), 4000);
@@ -553,14 +514,11 @@ const SecretaryDashboard = () => {
 
   const showToast = (msg, type = "success") => setToast({ visible: true, msg, type });
 
-  // ── Condition A: Remind other pending member ──
   const handleRemind = (id, name) => {
     setRemindedIds(prev => [...prev, id]);
     showToast(`Đã gửi email hối thúc đến ${name.split(". ")[1] ?? name}.`, "remind");
   };
 
-  // ── Condition C: Secretary evaluates ──
-  // Simulates navigating to SC-COUNCIL-02, completing, and returning with status updated.
   const handleEvaluate = () => {
     setEvaluating(true);
     setTimeout(() => {
@@ -570,12 +528,11 @@ const SecretaryDashboard = () => {
     }, 1800);
   };
 
-  // ── Footer: Create minutes ──
   const handleCreateMinutes = () => setConfirmOpen(true);
 
   const handleConfirmMinutes = () => {
     setConfirmOpen(false);
-    setDashboardState("MINUTES_CREATED");
+    setIsMinutesCreated(true);
     showToast("Biên bản Hội đồng đã được lập thành công. Hệ thống đang tổng hợp kết quả đánh giá.");
   };
 
@@ -590,7 +547,6 @@ const SecretaryDashboard = () => {
         {/* ── Page Header ── */}
         <header className="bg-white border-b border-gray-200 shadow-sm flex-shrink-0 px-8 py-5">
           <div className="flex items-start justify-between gap-4">
-            {/* Left: title + metadata */}
             <div className="flex flex-col gap-2 min-w-0">
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">SC-COUNCIL-03 · Thư ký Hội đồng</p>
@@ -601,7 +557,6 @@ const SecretaryDashboard = () => {
                 <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">{MOCK_MEETING.topicTitle}</p>
               </div>
 
-              {/* Meeting metadata tags */}
               <div className="flex items-center gap-3 flex-wrap">
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-gray-600 bg-gray-50 border border-gray-200 px-3 py-1 rounded-full">
                   <IcClock cls="w-3 h-3 text-gray-400" />
@@ -618,7 +573,6 @@ const SecretaryDashboard = () => {
               </div>
             </div>
 
-            {/* Right: Dynamic overall status badge */}
             <div className="flex-shrink-0">
               <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border ${statusCfg.bg} ${statusCfg.text}`}
                 style={{ borderColor: "transparent" }}>
@@ -631,11 +585,8 @@ const SecretaryDashboard = () => {
 
         {/* ── Scrollable content ── */}
         <div className="flex-1 overflow-auto px-8 py-6 flex flex-col gap-5">
-
-          {/* Progress Summary Card */}
           <ProgressCard members={members} />
 
-          {/* Member Tracking Table */}
           <MemberTable
             members={members}
             remindedIds={remindedIds}

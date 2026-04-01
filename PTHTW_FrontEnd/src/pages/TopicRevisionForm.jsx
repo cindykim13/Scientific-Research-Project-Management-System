@@ -1,5 +1,15 @@
+// File: src/pages/TopicRevisionForm.jsx
+
 import { useState, useRef, useCallback } from "react";
 import logoOU from "../assets/ADMIN/logo-ou.svg";
+
+// KÉO DỮ LIỆU TỪ FILE MOCK VÀO ĐÂY
+import {
+  MOCK_TOPIC,
+  COUNCIL_FEEDBACK,
+  SEVERITY_CFG,
+  INITIAL_FORM
+} from "../mocks/topicRevisionMock";
 
 // ─── SVG Factory ─────────────────────────────────────────────────────────────────
 
@@ -28,74 +38,6 @@ const IcSend       = p => <Svg {...p} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />;
 const IcSave       = p => <Svg {...p} d={["M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"]} />;
 const IcInfo       = p => <Svg {...p} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />;
 const IcEdit       = p => <Svg {...p} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />;
-
-// ─── Constants ────────────────────────────────────────────────────────────────────
-
-const MOCK_TOPIC = {
-  code:      "DT001",
-  title:     "Nghiên cứu Hệ thống AI trong Hỗ trợ Chẩn đoán Y tế",
-  titleEn:   "Research on AI Systems for Medical Diagnosis Support",
-  pi:        "TS. Nguyễn Minh Khoa",
-  unit:      "Khoa Công nghệ Thông tin",
-  council:   "HĐ CNTT – 01/2026",
-  meetingDate: "20/10/2026",
-  submittedDate: "15/09/2026",
-};
-
-const COUNCIL_FEEDBACK = {
-  avgScore:   85.4,
-  decision:   "Thông qua có điều kiện",
-  decisionSub:"Yêu cầu chỉnh sửa và nộp lại trong 30 ngày",
-  reviewer:   "GS.TS. Nguyễn Văn An (Chủ tịch HĐ)",
-  deadline:   "20/11/2026",
-  items: [
-    {
-      id: 1,
-      severity: "high",
-      section:  "Mục III – Rủi ro & Giới hạn",
-      content:  "Bổ sung phần đánh giá rủi ro chi tiết khi triển khai hệ thống AI vào môi trường y tế thực tế, bao gồm rủi ro về độ chính xác, bảo mật dữ liệu bệnh nhân và trách nhiệm pháp lý.",
-    },
-    {
-      id: 2,
-      severity: "high",
-      section:  "Mục II – Đối tượng & Phạm vi",
-      content:  "Làm rõ đối tượng nghiên cứu cụ thể: loại bệnh lý nào được ưu tiên, loại hình ảnh y tế nào (X-quang, MRI, CT) và phạm vi địa lý của cơ sở y tế hợp tác.",
-    },
-    {
-      id: 3,
-      severity: "medium",
-      section:  "Mục V – Dự toán Kinh phí",
-      content:  "Chi tiết hóa dự toán kinh phí theo từng hạng mục cụ thể. Một số hạng mục thiết bị được đánh giá cao hơn giá thị trường, cần rà soát và điều chỉnh cho phù hợp.",
-    },
-    {
-      id: 4,
-      severity: "medium",
-      section:  "Mục IV – Kế hoạch Triển khai",
-      content:  "Bổ sung kế hoạch thử nghiệm lâm sàng cụ thể, cơ chế phối hợp với các cơ sở y tế đối tác, và mốc kiểm tra tiến độ giữa kỳ (milestone).",
-    },
-    {
-      id: 5,
-      severity: "low",
-      section:  "Mục II – Mục tiêu cụ thể",
-      content:  "Bổ sung các chỉ số đo lường (KPI) rõ ràng và có thể kiểm chứng cho từng mục tiêu cụ thể để thuận tiện cho quá trình đánh giá nghiệm thu.",
-    },
-  ],
-};
-
-const SEVERITY_CFG = {
-  high:   { bg: "bg-red-50",    text: "text-red-700",    border: "border-red-200",    dot: "bg-red-400",    label: "Bắt buộc"  },
-  medium: { bg: "bg-amber-50",  text: "text-amber-700",  border: "border-amber-200",  dot: "bg-amber-400",  label: "Quan trọng" },
-  low:    { bg: "bg-blue-50",   text: "text-blue-700",   border: "border-blue-200",   dot: "bg-blue-400",   label: "Khuyến nghị" },
-};
-
-const INITIAL_FORM = {
-  title:      MOCK_TOPIC.title,
-  titleEn:    MOCK_TOPIC.titleEn,
-  objectives: "Phát triển hệ thống AI có khả năng hỗ trợ chẩn đoán hình ảnh y tế (X-quang, MRI) với độ chính xác ≥ 90%. Xây dựng bộ dữ liệu hình ảnh y tế chuẩn hóa đủ lớn cho huấn luyện và kiểm định mô hình. Phát triển giao diện tích hợp thân thiện phục vụ bác sĩ lâm sàng.",
-  scope:      "Đối tượng: Hình ảnh y tế (X-quang phổi, MRI não) thu thập từ 2 bệnh viện đối tác tại TP.HCM trong giai đoạn 2026–2027. Phạm vi: Tập trung vào 3 loại bệnh lý phổ biến nhất trong bộ dữ liệu hợp tác.",
-  methods:    "Sử dụng các kiến trúc mạng neural tích chập (CNN) tiên tiến: ResNet-50, EfficientNet-B4, Vision Transformer. Áp dụng kỹ thuật Transfer Learning và Data Augmentation để tối ưu với bộ dữ liệu y tế hạn chế. Đánh giá mô hình bằng AUC-ROC, Sensitivity, Specificity.",
-  products:   "01 Bài báo khoa học trên tạp chí quốc tế Q2+. 01 Phần mềm hỗ trợ chẩn đoán được cấp ĐKBQ. 01 Báo cáo kết quả toàn diện.",
-};
 
 // ─── Toast ───────────────────────────────────────────────────────────────────────
 
@@ -194,6 +136,59 @@ const ConfirmModal = ({ newFile, onClose, onConfirm }) => {
     </div>
   );
 };
+
+// ─── Component độc lập: Field nhập liệu (Đã tách ra ngoài để fix lỗi Cascading Renders) ──────────
+
+const Field = ({ label, name, rows, hint, mandatory = false, form, setForm }) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-[12.5px] font-bold text-gray-700 leading-none">
+      {label} {mandatory && <span className="text-red-500 ml-0.5">*</span>}
+      {hint && <span className="ml-2 text-[10px] font-normal text-gray-400 normal-case">{hint}</span>}
+    </label>
+    {rows ? (
+      <textarea
+        value={form[name]}
+        onChange={e => setForm(p => ({ ...p, [name]: e.target.value }))}
+        rows={rows}
+        className="resize-none rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#1a5ea8] focus:ring-2 focus:ring-[#1a5ea8]/20 text-[12.5px] text-gray-700 leading-relaxed px-3.5 py-3 outline-none transition placeholder:text-gray-400"
+      />
+    ) : (
+      <input
+        type="text"
+        value={form[name]}
+        onChange={e => setForm(p => ({ ...p, [name]: e.target.value }))}
+        className="h-10 rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#1a5ea8] focus:ring-2 focus:ring-[#1a5ea8]/20 text-[12.5px] text-gray-700 px-3.5 outline-none transition"
+      />
+    )}
+  </div>
+);
+
+// ─── Section 1: Content Form ──────────────────────────────────────────────────────
+
+const ContentSection = ({ form, setForm }) => {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2 pb-1">
+        <span className="w-6 h-6 rounded-full bg-[#c5e2f5] flex items-center justify-center text-[#1a5ea8] text-[11px] font-black">1</span>
+        <h2 className="text-[14px] font-bold text-gray-800">Nội dung đề tài</h2>
+        <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1 ml-1">
+          <IcEdit cls="w-3 h-3 text-[#1a5ea8]" />
+          <span className="text-[10px] font-bold text-[#1a5ea8]">Đang chỉnh sửa</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4">
+        {/* Truyền form và setForm xuống Field component độc lập */}
+        <Field label="Tên đề tài (Tiếng Việt)" name="title"     mandatory form={form} setForm={setForm} />
+        <Field label="Tên đề tài (Tiếng Anh)"  name="titleEn"   hint="(tuỳ chọn)" form={form} setForm={setForm} />
+        <Field label="Mục tiêu nghiên cứu"      name="objectives" rows={4} mandatory hint="— đã chỉnh sửa theo yêu cầu HĐ" form={form} setForm={setForm} />
+        <Field label="Đối tượng & Phạm vi"       name="scope"     rows={3} mandatory form={form} setForm={setForm} />
+        <Field label="Phương pháp nghiên cứu"   name="methods"   rows={4} mandatory form={form} setForm={setForm} />
+        <Field label="Sản phẩm dự kiến"         name="products"  rows={2} form={form} setForm={setForm} />
+      </div>
+    </div>
+  );
+};
+
 
 // ─── Left Panel: Council Minutes Tab ─────────────────────────────────────────────
 
@@ -421,54 +416,6 @@ const LeftPanel = () => {
   );
 };
 
-// ─── Section 1: Content Form ──────────────────────────────────────────────────────
-
-const ContentSection = ({ form, setForm }) => {
-  const Field = ({ label, name, rows, hint, mandatory = false }) => (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-[12.5px] font-bold text-gray-700 leading-none">
-        {label} {mandatory && <span className="text-red-500 ml-0.5">*</span>}
-        {hint && <span className="ml-2 text-[10px] font-normal text-gray-400 normal-case">{hint}</span>}
-      </label>
-      {rows ? (
-        <textarea
-          value={form[name]}
-          onChange={e => setForm(p => ({ ...p, [name]: e.target.value }))}
-          rows={rows}
-          className="resize-none rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#1a5ea8] focus:ring-2 focus:ring-[#1a5ea8]/20 text-[12.5px] text-gray-700 leading-relaxed px-3.5 py-3 outline-none transition placeholder:text-gray-400"
-        />
-      ) : (
-        <input
-          type="text"
-          value={form[name]}
-          onChange={e => setForm(p => ({ ...p, [name]: e.target.value }))}
-          className="h-10 rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white focus:border-[#1a5ea8] focus:ring-2 focus:ring-[#1a5ea8]/20 text-[12.5px] text-gray-700 px-3.5 outline-none transition"
-        />
-      )}
-    </div>
-  );
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2 pb-1">
-        <span className="w-6 h-6 rounded-full bg-[#c5e2f5] flex items-center justify-center text-[#1a5ea8] text-[11px] font-black">1</span>
-        <h2 className="text-[14px] font-bold text-gray-800">Nội dung đề tài</h2>
-        <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1 ml-1">
-          <IcEdit cls="w-3 h-3 text-[#1a5ea8]" />
-          <span className="text-[10px] font-bold text-[#1a5ea8]">Đang chỉnh sửa</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 gap-4">
-        <Field label="Tên đề tài (Tiếng Việt)" name="title"     mandatory />
-        <Field label="Tên đề tài (Tiếng Anh)"  name="titleEn"   hint="(tuỳ chọn)" />
-        <Field label="Mục tiêu nghiên cứu"      name="objectives" rows={4} mandatory hint="— đã chỉnh sửa theo yêu cầu HĐ" />
-        <Field label="Đối tượng & Phạm vi"       name="scope"     rows={3} mandatory />
-        <Field label="Phương pháp nghiên cứu"   name="methods"   rows={4} mandatory />
-        <Field label="Sản phẩm dự kiến"         name="products"  rows={2} />
-      </div>
-    </div>
-  );
-};
 
 // ─── Section 2: File Versioning ───────────────────────────────────────────────────
 
@@ -488,7 +435,7 @@ const FileVersioningSection = ({ newFile, setNewFile }) => {
     if (file) setNewFile({ name: file.name.replace(/\.pdf$/i, "_v2.pdf"), size: (file.size / 1024 / 1024).toFixed(1) + " MB", raw: file });
   };
 
-  // Mock upload shortcut for demo (since files can't be physically uploaded)
+  // Mock upload shortcut for demo
   const handleMockUpload = () => {
     setNewFile({ name: "Thuyết_minh_v2.pdf", size: "2.8 MB", raw: null });
   };

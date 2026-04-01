@@ -1,4 +1,17 @@
+// File: src/pages/CouncilEvalForm.jsx
+
 import { useState, useEffect } from "react";
+
+// KÉO DỮ LIỆU VÀ LOGIC TỪ FILE MOCK VÀO ĐÂY
+import {
+  MOCK_TOPIC,
+  CRITERIA,
+  MAX_TOTAL,
+  GRADE_OPTIONS,
+  GRADE_CFG,
+  suggestGrade,
+  mkScores,
+} from "../mocks/councilEvalMock";
 
 // ─── SVG Factory ─────────────────────────────────────────────────────────────────
 
@@ -22,87 +35,6 @@ const IcSave      = p => <Svg {...p} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2
 const IcSparkle   = p => <Svg {...p} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />;
 const IcClipboard = p => <Svg {...p} d={["M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2", "M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"]} />;
 const IcStar      = p => <Svg {...p} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />;
-
-// ─── Constants ───────────────────────────────────────────────────────────────────
-
-const MOCK_TOPIC = {
-  code:          "DT001",
-  title:         "Nghiên cứu Hệ thống AI trong Hỗ trợ Chẩn đoán Y tế",
-  pi:            "Nguyễn Thị Hoa",
-  council:       "HĐ CNTT – 01/2026",
-  evaluatorRole: "Phản biện 1",
-  evaluatorName: "GS.TS. Nguyễn Văn An",
-  evaluatorUnit: "ĐH Khoa học Tự nhiên TP.HCM",
-  date:          "20/03/2026 14:00",
-  location:      "Phòng B.306",
-};
-
-const CRITERIA = [
-  {
-    id: 1, num: "I",
-    title:       "Tính cấp thiết",
-    maxScore:    15,
-    description: "Tính cấp thiết, tầm quan trọng và ý nghĩa thực tiễn của đề tài đối với khoa học và xã hội.",
-  },
-  {
-    id: 2, num: "II",
-    title:       "Mục tiêu và Nội dung",
-    maxScore:    30,
-    description: "Sự rõ ràng, tính bao quát và tính khả thi của mục tiêu và đầy đủ các nội dung nghiên cứu.",
-  },
-  {
-    id: 3, num: "III",
-    title:       "Phương pháp Nghiên cứu",
-    maxScore:    15,
-    description: "Sự phù hợp và tính khoa học của phương pháp nghiên cứu và cách tiếp cận đề tài.",
-  },
-  {
-    id: 4, num: "IV",
-    title:       "Tính khả thi và Hiệu quả",
-    maxScore:    10,
-    description: "Khả năng thực hiện, nguồn lực và hiệu quả mong đợi của đề tài trong điều kiện thực tế.",
-  },
-  {
-    id: 5, num: "V",
-    title:       "Năng lực Nhóm nghiên cứu",
-    maxScore:    10,
-    description: "Kinh nghiệm, chuyên môn và điều kiện vật chất-kỹ thuật của nhóm nghiên cứu.",
-  },
-  {
-    id: 6, num: "VI",
-    title:       "Sản phẩm Khoa học",
-    maxScore:    20,
-    description: "Các sản phẩm dự kiến: bài báo khoa học, công nghệ, giải pháp và khả năng chuyển giao.",
-  },
-];
-
-const MAX_TOTAL = CRITERIA.reduce((s, c) => s + c.maxScore, 0); // 100
-
-const GRADE_OPTIONS = [
-  { value: "",          label: "Chọn mức xếp loại..." },
-  { value: "excellent", label: "Xuất sắc (≥ 90 điểm)"  },
-  { value: "good",      label: "Khá (80 – 89 điểm)"    },
-  { value: "pass",      label: "Đạt (70 – 79 điểm)"    },
-  { value: "fail",      label: "Không đạt (< 70 điểm)" },
-];
-
-const GRADE_CFG = {
-  excellent: { style: "bg-green-100 text-green-800 border-green-300",  short: "Xuất sắc" },
-  good:      { style: "bg-blue-100  text-blue-800  border-blue-300",   short: "Khá"      },
-  pass:      { style: "bg-yellow-100 text-yellow-800 border-yellow-300", short: "Đạt"   },
-  fail:      { style: "bg-red-100   text-red-800   border-red-300",    short: "Không đạt"},
-};
-
-// Derive grade suggestion purely from total score
-const suggestGrade = total => {
-  if (total >= 90) return "excellent";
-  if (total >= 80) return "good";
-  if (total >= 70) return "pass";
-  return "fail";
-};
-
-const mkScores = () =>
-  Object.fromEntries(CRITERIA.map(c => [c.id, { score: "", comment: "" }]));
 
 // ─── Toast ───────────────────────────────────────────────────────────────────────
 
@@ -274,7 +206,6 @@ const MockPDFPage = ({ page }) => (
 const CriterionRow = ({ criterion, data, onChange, disabled }) => {
   const { score, comment } = data;
   const numVal  = score === "" ? null : parseFloat(score);
-  const isEmpty = score === "";
   const isInvalid = numVal !== null && (isNaN(numVal) || numVal < 0 || numVal > criterion.maxScore);
   const isValid   = numVal !== null && !isInvalid;
   const pct = isValid ? Math.min(100, (numVal / criterion.maxScore) * 100) : 0;
@@ -411,21 +342,20 @@ const CouncilEvalForm = () => {
   const allCriteriaValid = criteriaState.every(c => c.valid);
 
   // ── AUTO-SUGGEST GRADE via useEffect ──
-  // When all scores are valid, automatically derive a grade suggestion.
-  // Tracks gradeAutoSuggested flag to show the "Gợi ý tự động" pill.
-  // User can always override manually; the override flag clears next time scores change.
   useEffect(() => {
     if (allCriteriaValid) {
       const suggested = suggestGrade(totalScore);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGrade(suggested);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGradeAutoSuggested(true);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGradeAutoSuggested(false);
     }
   }, [totalScore, allCriteriaValid]);
-
+  
   // ── STRICT canSave logic ──
-  // All 4 conditions from the spec must be true simultaneously.
   const canSave =
     allCriteriaValid &&                 // (1) all 6 scores filled & valid
     totalScore <= MAX_TOTAL &&          // (2) total <= 100

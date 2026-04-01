@@ -1,5 +1,15 @@
+// File: src/pages/EmailTemplatePreviewer.jsx
+
 import { useState, useEffect } from "react";
 import logoOU from "../assets/ADMIN/logo-ou.svg";
+
+// KÉO DỮ LIỆU TỪ FILE MOCK VÀO ĐÂY
+import {
+  ACADEMIC_TITLES,
+  COUNCIL_ROLES,
+  DEFAULT_VARS,
+  EMAIL_THEME,
+} from "../mocks/emailTemplateMock";
 
 // ─── SVG Factory ─────────────────────────────────────────────────────────────────
 
@@ -17,27 +27,9 @@ const IcUser     = p => <Svg {...p} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7
 const IcCalendar = p => <Svg {...p} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />;
 const IcKey      = p => <Svg {...p} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />;
 const IcLink     = p => <Svg {...p} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />;
-const IcDoc      = p => <Svg {...p} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />;
 const IcInfo     = p => <Svg {...p} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />;
 const IcRefresh  = p => <Svg {...p} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />;
 const IcChevDown = p => <Svg {...p} d="M19 9l-7 7-7-7" />;
-
-// ─── Constants ────────────────────────────────────────────────────────────────────
-
-const ACADEMIC_TITLES  = ["GS.TS", "PGS.TS", "TS", "ThS", "BS.CKII"];
-const COUNCIL_ROLES    = ["Chủ tịch", "Thư ký", "Phản biện 1", "Phản biện 2", "Ủy viên"];
-
-const DEFAULT_VARS = {
-  academicTitle:    "GS.TS",
-  fullName:         "Nguyễn Văn An",
-  topicName:        "Nghiên cứu Hệ thống Trí tuệ Nhân tạo trong Hỗ trợ Chẩn đoán Y tế",
-  meetingTime:      "08:00 – 20/10/2026",
-  meetingLocation:  "Phòng Họp Trực tuyến A (Google Meet)",
-  username:         "expert.nguyenvanan@ou.edu.vn",
-  temporaryPassword:"Ou@2026#Tmp!",
-  councilRole:      "Chủ tịch",
-  loginUrl:         "https://qlnckh.ou.edu.vn/login",
-};
 
 // ─── Toast ───────────────────────────────────────────────────────────────────────
 
@@ -228,8 +220,7 @@ const EmailClientChrome = ({ vars }) => (
 
 // The actual 600px-width email body
 const EmailBody = ({ vars }) => {
-  const BRAND   = "#1a5ea8";
-  const BG_MAIN = "#F7F9FC";
+  const { BRAND, BG_MAIN } = EMAIL_THEME;
 
   return (
     <div style={{ backgroundColor: BG_MAIN, padding: "24px 0", fontFamily: "'Segoe UI', Helvetica, Arial, sans-serif" }}>

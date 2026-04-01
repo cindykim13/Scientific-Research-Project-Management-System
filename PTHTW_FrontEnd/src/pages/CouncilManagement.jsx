@@ -1,5 +1,19 @@
+// File: src/pages/CouncilManagement.jsx
+
 import { useState, useEffect, useRef } from "react";
 import logoOU from "../assets/ADMIN/logo-ou.svg";
+
+// KÉO DỮ LIỆU TỪ FILE MOCK VÀO ĐÂY
+import {
+  MEMBER_ROLES,
+  MOCK_EXPERTS,
+  MOCK_TOPICS,
+  COUNCIL_STATUS,
+  INITIAL_COUNCILS,
+  HEADERS,
+  getRoleCounts,
+  isQuorumMet
+} from "../mocks/councilManMock";
 
 // ─── SVG Factory ─────────────────────────────────────────────────────────────────
 
@@ -27,63 +41,11 @@ const IcMapPin   = p => <Svg {...p} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 
 const IcMail     = p => <Svg {...p} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />;
 const IcChevDown = p => <Svg {...p} d="M19 9l-7 7-7-7" />;
 
-// ─── Constants ───────────────────────────────────────────────────────────────────
-
-const MEMBER_ROLES = ["Chủ tịch", "Thư ký", "Phản biện 1", "Phản biện 2", "Ủy viên"];
-
-const MOCK_EXPERTS = [
-  { name: "PGS.TS. Nguyễn Văn An",   email: "nvaan@hcmus.edu.vn",    unit: "Đại học Khoa học Tự nhiên"    },
-  { name: "PGS.TS. Trần Thị Bình",   email: "ttbinh@uit.edu.vn",     unit: "Đại học Công nghệ Thông tin"  },
-  { name: "TS. Lê Minh Cường",        email: "lmcuong@hcmuaf.edu.vn", unit: "Đại học Nông Lâm TP.HCM"     },
-  { name: "GS.TS. Phạm Quốc Dũng",   email: "pqdung@vnuhcm.edu.vn",  unit: "Đại học Quốc gia TP.HCM"     },
-  { name: "TS. Hoàng Thị Oanh",       email: "htoanh@tdtu.edu.vn",    unit: "Đại học Tôn Đức Thắng"       },
-  { name: "PGS.TS. Đặng Văn Phúc",   email: "dvphuc@bku.edu.vn",     unit: "Đại học Bách khoa TP.HCM"    },
-  { name: "TS. Nguyễn Minh Quân",     email: "nmquan@huflit.edu.vn",  unit: "Đại học Ngoại ngữ Tin học"   },
-  { name: "GS.TS. Bùi Thị Hoa",      email: "bthoa@hcmute.edu.vn",   unit: "Đại học Sư phạm Kỹ thuật"   },
-  { name: "TS. Vũ Đức Long",          email: "vdlong@iuh.edu.vn",     unit: "Đại học Công nghiệp TP.HCM"  },
-  { name: "PGS.TS. Lưu Thị Kim Thi", email: "ltkimthi@hcmulaw.edu.vn", unit: "Đại học Luật TP.HCM"       },
-];
-
-const MOCK_TOPICS = [
-  { id: 1, code: "DT001", title: "Nghiên cứu ứng dụng AI trong giáo dục đại học Việt Nam",              pi: "Nguyễn Thị Hoa"  },
-  { id: 2, code: "DT002", title: "Phát triển hệ thống IoT thông minh cho nông nghiệp bền vững",         pi: "Trần Văn Minh"   },
-  { id: 3, code: "DT003", title: "Blockchain trong quản lý chuỗi cung ứng dược phẩm Việt Nam",          pi: "Lê Thị Lan"      },
-  { id: 4, code: "DT004", title: "Mô hình học máy dự đoán và phòng ngừa dịch bệnh đô thị",             pi: "Phạm Quốc Hùng"  },
-  { id: 5, code: "DT005", title: "Tối ưu hóa thuật toán xử lý ngôn ngữ tự nhiên tiếng Việt",           pi: "Hoàng Thị Thu"   },
-  { id: 6, code: "DT006", title: "Nghiên cứu vật liệu nano ứng dụng trong y học tái tạo",              pi: "Đặng Văn Long"   },
-  { id: 7, code: "DT007", title: "Phân tích tác động kinh tế của chuyển đổi số doanh nghiệp",          pi: "Bùi Thị Duyên"   },
-];
-
-const COUNCIL_STATUS = {
-  pending:  { label: "Chờ họp",        bg: "bg-yellow-100", text: "text-yellow-800" },
-  ongoing:  { label: "Đang họp",       bg: "bg-blue-100",   text: "text-blue-700"   },
-  finished: { label: "Đã có Biên bản", bg: "bg-green-100",  text: "text-green-700"  },
-};
-
-const INITIAL_COUNCILS = [
-  { id: 1, name: "HĐ CNTT – 01/2026",      topic: "Nghiên cứu ứng dụng AI trong giáo dục đại học Việt Nam",              pi: "Nguyễn Thị Hoa",  datetime: "20/03/2026 14:00", location: "Phòng B.306",          status: "pending",  memberCount: 5 },
-  { id: 2, name: "HĐ Kỹ thuật – 01/2026",  topic: "Phát triển hệ thống IoT thông minh cho nông nghiệp bền vững",         pi: "Trần Văn Minh",   datetime: "18/03/2026 09:00", location: "Google Meet",           status: "ongoing",  memberCount: 5 },
-  { id: 3, name: "HĐ Kinh tế – 02/2025",   topic: "Blockchain trong quản lý chuỗi cung ứng dược phẩm Việt Nam",          pi: "Lê Thị Lan",      datetime: "10/03/2026 14:00", location: "Phòng A.204",          status: "finished", memberCount: 5 },
-  { id: 4, name: "HĐ Y dược – 01/2026",    topic: "Nghiên cứu vật liệu nano ứng dụng trong y học tái tạo",               pi: "Đặng Văn Long",   datetime: "25/03/2026 08:30", location: "Phòng C.102",          status: "pending",  memberCount: 5 },
-  { id: 5, name: "HĐ Kinh tế – 01/2026",   topic: "Phân tích tác động kinh tế của chuyển đổi số doanh nghiệp",           pi: "Bùi Thị Duyên",   datetime: "22/03/2026 13:30", location: "Zoom Meeting",         status: "pending",  memberCount: 5 },
-];
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────────
 
 let _memberId = 6;
 const freshMember = () => ({ id: _memberId++, name: "", email: "", role: "" });
 const makeDefaultMembers = () => Array.from({ length: 5 }, freshMember);
-
-const getRoleCounts = members => ({
-  chuTich:  members.filter(m => m.role === "Chủ tịch").length,
-  thuKy:    members.filter(m => m.role === "Thư ký").length,
-  phanBien: members.filter(m => m.role === "Phản biện 1" || m.role === "Phản biện 2").length,
-  uyVien:   members.filter(m => m.role === "Ủy viên").length,
-});
-
-// Button B enabled only when the mandatory quorum is met
-const isQuorumMet = counts =>
-  counts.chuTich === 1 && counts.thuKy === 1 && counts.phanBien === 2;
 
 // ─── Toast ───────────────────────────────────────────────────────────────────────
 
@@ -160,8 +122,6 @@ const StatusBadge = ({ status }) => {
 };
 
 // ─── Role Counter Pill ────────────────────────────────────────────────────────────
-// Shows real-time role quota status. Turns green when filled, amber when
-// approaching, red when over-quota for fixed roles.
 
 const RoleCounterPill = ({ label, count, required, isN = false }) => {
   const fulfilled = isN ? count > 0 : count === required;
@@ -184,8 +144,6 @@ const RoleCounterPill = ({ label, count, required, isN = false }) => {
 };
 
 // ─── Expert Name Combobox (per member row) ────────────────────────────────────────
-// Typing 2+ characters shows a filtered dropdown from MOCK_EXPERTS.
-// Selecting an entry auto-populates the email field via the onSelectExpert callback.
 
 const ExpertCombobox = ({ value, onChange, onSelectExpert, placeholder }) => {
   const [open, setOpen] = useState(false);
@@ -223,8 +181,6 @@ const ExpertCombobox = ({ value, onChange, onSelectExpert, placeholder }) => {
 };
 
 // ─── Topic Searchable Input ────────────────────────────────────────────────────────
-// Shows a searchable list of MOCK_TOPICS. When a topic is selected, it switches
-// to a read-only chip with a clear button (supports pre-fill from parent).
 
 const TopicSearchInput = ({ query, selectedTopic, onQuery, onSelect, onClear, readOnly = false }) => {
   const [open, setOpen] = useState(false);
@@ -293,11 +249,6 @@ const TopicSearchInput = ({ query, selectedTopic, onQuery, onSelect, onClear, re
 };
 
 // ─── Member Row ───────────────────────────────────────────────────────────────────
-// One row in the dynamic member list. Contains:
-// - Expert name combobox (with auto-suggest + email auto-fill)
-// - Email input (auto-filled when expert selected, editable)
-// - Role dropdown (strictly from MEMBER_ROLES)
-// - Trash remove button
 
 const MemberRow = ({ member, rowNum, onUpdate, onSelectExpert, onRemove }) => {
   const roleColors = {
@@ -311,18 +262,13 @@ const MemberRow = ({ member, rowNum, onUpdate, onSelectExpert, onRemove }) => {
 
   return (
     <div className="grid items-start gap-2" style={{ gridTemplateColumns: "28px 1fr 1fr 170px 36px" }}>
-      {/* Row number */}
       <span className="h-9 flex items-center justify-center text-xs font-bold text-gray-400 select-none">{rowNum}</span>
-
-      {/* Expert name combobox */}
       <ExpertCombobox
         value={member.name}
         onChange={val => onUpdate(member.id, "name", val)}
         onSelectExpert={expert => onSelectExpert(member.id, expert)}
         placeholder="Tìm / nhập họ tên..."
       />
-
-      {/* Email (auto-fills on expert select) */}
       <div className="relative">
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
           <IcMail cls="w-3.5 h-3.5 text-gray-300" />
@@ -335,8 +281,6 @@ const MemberRow = ({ member, rowNum, onUpdate, onSelectExpert, onRemove }) => {
           className="w-full h-9 pl-8 pr-3 text-sm rounded-lg border border-gray-200 bg-gray-50 text-gray-800 placeholder-gray-400 outline-none focus:border-[#1a5ea8] focus:ring-2 focus:ring-[#1a5ea8]/10 focus:bg-white transition"
         />
       </div>
-
-      {/* Role dropdown */}
       <div className="relative">
         <select
           value={member.role}
@@ -352,8 +296,6 @@ const MemberRow = ({ member, rowNum, onUpdate, onSelectExpert, onRemove }) => {
           <IcChevDown cls="w-3 h-3 text-gray-400" />
         </span>
       </div>
-
-      {/* Remove */}
       <button
         onClick={() => onRemove(member.id)}
         className="w-9 h-9 flex items-center justify-center rounded-lg text-red-300 hover:bg-red-50 hover:text-red-500 transition flex-shrink-0"
@@ -366,25 +308,20 @@ const MemberRow = ({ member, rowNum, onUpdate, onSelectExpert, onRemove }) => {
 };
 
 // ─── Council Configuration Modal ─────────────────────────────────────────────────
-// The large SC-MAN-03 modal. Controls:
-// - form: general info + selected topic
-// - members: dynamic array of member rows (starts with 5 defaults)
-// - canSave: derived from isQuorumMet(getRoleCounts(members))
 
-const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
+const CouncilModal = ({ onClose, onSave, prefillTopic = null, initialData = null }) => {
   const [form, setForm] = useState({
-    name:          "",
-    date:          "",
-    time:          "",
-    location:      "",
-    topicQuery:    prefillTopic ? `${prefillTopic.code} – ${prefillTopic.title}` : "",
-    selectedTopic: prefillTopic ?? null,
+    name:          initialData?.name ?? "",
+    date:          initialData?.datetime?.split(" ")[0]?.split("/").reverse().join("-") ?? "",
+    time:          initialData?.datetime?.split(" ")[1] ?? "",
+    location:      initialData?.location ?? "",
+    topicQuery:    initialData ? initialData.topic : (prefillTopic ? `${prefillTopic.code} – ${prefillTopic.title}` : ""),
+    selectedTopic: initialData ? MOCK_TOPICS.find(t => t.title === initialData.topic) : (prefillTopic ?? null),
   });
 
   const [members, setMembers]   = useState(makeDefaultMembers);
   const nextIdRef               = useRef(100);
 
-  // Close on Escape key
   useEffect(() => {
     const h = e => e.key === "Escape" && onClose();
     document.addEventListener("keydown", h);
@@ -394,10 +331,8 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
   const counts   = getRoleCounts(members);
   const canSave  = isQuorumMet(counts);
 
-  // ── Form helpers ──
   const setField = (field, val) => setForm(f => ({ ...f, [field]: val }));
 
-  // ── Member helpers ──
   const addMember = () =>
     setMembers(prev => [...prev, { id: nextIdRef.current++, name: "", email: "", role: "" }]);
 
@@ -407,7 +342,6 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
   const updateMember = (id, field, val) =>
     setMembers(prev => prev.map(m => m.id !== id ? m : { ...m, [field]: val }));
 
-  // Batch-update name + email when user picks from expert suggestions
   const selectExpert = (id, expert) =>
     setMembers(prev => prev.map(m => m.id !== id ? m : { ...m, name: expert.name, email: expert.email }));
 
@@ -416,18 +350,20 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
     const dateStr  = form.date ? form.date.split("-").reverse().join("/") : "—";
     const timeStr  = form.time || "";
     const datetime = form.date ? `${dateStr}${timeStr ? " " + timeStr : ""}` : "—";
+    
+    // Nếu có initialData (tức là đang Edit), ta gộp với ID cũ để hàm cha biết đường map()
     onSave({
+      ...(initialData && { id: initialData.id }),
       name,
       topic:       form.selectedTopic?.title ?? form.topicQuery ?? "—",
       pi:          form.selectedTopic?.pi    ?? "—",
       datetime,
       location:    form.location.trim() || "—",
-      status:      "pending",
+      status:      initialData ? initialData.status : "pending",
       memberCount: members.filter(m => m.name.trim()).length || members.length,
     });
   };
 
-  // Compute quorum hint message for the footer
   const quorumHints = [];
   if (counts.chuTich  !== 1) quorumHints.push(`1 Chủ tịch (hiện: ${counts.chuTich})`);
   if (counts.thuKy    !== 1) quorumHints.push(`1 Thư ký (hiện: ${counts.thuKy})`);
@@ -440,14 +376,15 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
     >
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden">
 
-        {/* ── Modal Header ── */}
         <div className="flex items-center justify-between px-7 py-5 border-b border-gray-100 bg-gradient-to-r from-blue-50/60 to-white flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#1a5ea8] flex items-center justify-center flex-shrink-0 shadow-sm">
               <IcCouncil cls="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-[15px] font-bold text-gray-900 leading-tight">Thiết lập Hội đồng Xét duyệt</h2>
+              <h2 className="text-[15px] font-bold text-gray-900 leading-tight">
+                {initialData ? "Chỉnh sửa Hội đồng Xét duyệt" : "Thiết lập Hội đồng Xét duyệt"}
+              </h2>
               <p className="text-[11px] text-gray-500 mt-0.5">Điền đầy đủ thông tin chung và cơ cấu thành viên bắt buộc</p>
             </div>
           </div>
@@ -459,19 +396,14 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
           </button>
         </div>
 
-        {/* ── Scrollable Body ── */}
         <div className="flex-1 overflow-y-auto px-7 py-6 flex flex-col gap-7">
-
-          {/* ══ SECTION 1: General Info ══ */}
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-[#1a5ea8] text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">1</span>
               <h3 className="text-xs font-bold text-gray-600 uppercase tracking-widest">Thông tin chung</h3>
             </div>
 
-            {/* 2-column input grid */}
             <div className="grid grid-cols-2 gap-4">
-              {/* Council name */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">
                   Tên Hội đồng <span className="text-red-500">*</span>
@@ -485,7 +417,6 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
                 />
               </div>
 
-              {/* Date */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">
                   Ngày họp <span className="text-red-500">*</span>
@@ -503,7 +434,6 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
                 </div>
               </div>
 
-              {/* Time */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">Giờ họp</label>
                 <div className="relative">
@@ -519,7 +449,6 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
                 </div>
               </div>
 
-              {/* Location */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-gray-600">Địa điểm / Link trực tuyến</label>
                 <div className="relative">
@@ -537,7 +466,6 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
               </div>
             </div>
 
-            {/* Topic assignment */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-600">
                 Gán Đề tài nghiên cứu <span className="text-red-500">*</span>
@@ -555,10 +483,7 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
 
           <div className="border-t border-dashed border-gray-200" />
 
-          {/* ══ SECTION 2: Dynamic Member List ══ */}
           <div className="flex flex-col gap-4">
-
-            {/* Section header row */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-[#1a5ea8] text-white text-[10px] font-black flex items-center justify-center flex-shrink-0">2</span>
@@ -578,7 +503,6 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
               </button>
             </div>
 
-            {/* ── Role Counter Pills (live quorum indicator) ── */}
             <div className="flex items-center gap-2 flex-wrap bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mr-1">Kiểm tra cơ cấu:</span>
               <RoleCounterPill label="Chủ tịch"  count={counts.chuTich}  required={1} />
@@ -600,14 +524,12 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
               </span>
             </div>
 
-            {/* Column headers */}
             <div className="grid gap-2 px-0.5" style={{ gridTemplateColumns: "28px 1fr 1fr 170px 36px" }}>
               {["#", "Họ tên chuyên gia", "Email liên hệ", "Vai trò", ""].map((h, i) => (
                 <p key={i} className={`text-[11px] font-bold text-gray-400 uppercase tracking-wider ${i === 4 ? "" : "px-1"}`}>{h}</p>
               ))}
             </div>
 
-            {/* Dynamic member rows */}
             <div className="flex flex-col gap-2">
               {members.map((member, idx) => (
                 <MemberRow
@@ -628,14 +550,12 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
           </div>
         </div>
 
-        {/* ── Modal Footer ── */}
         <div className="flex items-center justify-between px-7 py-4 border-t border-gray-100 bg-gray-50/70 flex-shrink-0">
-          {/* Validation hint */}
           <div className="flex-1 min-w-0 pr-4">
             {canSave ? (
               <p className="text-[11px] text-green-600 font-semibold flex items-center gap-1.5">
                 <IcCheck cls="w-3.5 h-3.5 flex-shrink-0" />
-                Cơ cấu hội đồng hợp lệ — sẵn sàng kích hoạt
+                Cơ cấu hội đồng hợp lệ — sẵn sàng lưu
               </p>
             ) : (
               <p className="text-[11px] text-amber-600 flex items-center gap-1.5 leading-snug">
@@ -662,7 +582,7 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
               }`}
             >
               <IcCheck cls="w-4 h-4" />
-              Lưu và Kích hoạt
+              {initialData ? "Cập nhật Hội đồng" : "Lưu và Kích hoạt"}
             </button>
           </div>
         </div>
@@ -673,13 +593,11 @@ const CouncilModal = ({ onClose, onSave, prefillTopic = null }) => {
 
 // ─── Main Page: Council Management (SC-MAN-03) ───────────────────────────────────
 
-const HEADERS = ["Tên Hội đồng", "Đề tài phụ trách", "Thời gian & Địa điểm", "Trạng thái", "Hành động"];
-
 const CouncilManagement = () => {
   const [councils,     setCouncils]     = useState(INITIAL_COUNCILS);
   const [navActive,    setNavActive]    = useState("council");
   const [modalOpen,    setModalOpen]    = useState(false);
-  const [editCouncil,  setEditCouncil]  = useState(null);
+  const [editCouncil,  setEditCouncil]  = useState(null); // FIXED ESLINT: Now used
   const [toast,        setToast]        = useState({ visible: false, msg: "" });
 
   useEffect(() => {
@@ -691,12 +609,16 @@ const CouncilManagement = () => {
 
   const showToast = msg => setToast({ visible: true, msg });
 
-  const handleSave = council => {
-    setCouncils(prev => [{ ...council, id: Date.now() }, ...prev]);
+  const handleSave = (councilData) => {
+    // Nếu có ID tức là đang Edit
+    if (councilData.id) {
+      setCouncils(prev => prev.map(c => c.id === councilData.id ? { ...c, ...councilData } : c));
+      showToast("Cập nhật thông tin Hội đồng thành công.");
+    } else {
+      setCouncils(prev => [{ ...councilData, id: Date.now() }, ...prev]);
+      showToast("Thiết lập Hội đồng thành công. Hệ thống đang tiến hành khởi tạo tài khoản và gửi Email xác nhận đến các chuyên gia.");
+    }
     setModalOpen(false);
-    showToast(
-      "Thiết lập Hội đồng thành công. Hệ thống đang tiến hành khởi tạo tài khoản và gửi Email xác nhận đến các chuyên gia."
-    );
   };
 
   return (
@@ -704,7 +626,6 @@ const CouncilManagement = () => {
       <Sidebar active={navActive} setActive={setNavActive} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
         <header className="flex items-center justify-between px-8 py-5 bg-white border-b border-gray-200 shadow-sm flex-shrink-0">
           <div>
             <h1 className="text-2xl font-bold text-gray-800 leading-tight">Quản lý Hội đồng Xét duyệt</h1>
@@ -719,7 +640,6 @@ const CouncilManagement = () => {
           </button>
         </header>
 
-        {/* Table */}
         <div className="flex-1 overflow-auto px-8 py-6">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <table className="w-full text-sm">
@@ -757,7 +677,7 @@ const CouncilManagement = () => {
                     </td>
                     <td className="py-4 px-5 text-center">
                       <button
-                        onClick={() => setEditCouncil(council)}
+                        onClick={() => { setEditCouncil(council); setModalOpen(true); }}
                         className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg border border-gray-300 text-gray-600 text-xs font-semibold hover:bg-gray-50 hover:border-gray-400 transition"
                       >
                         <IcEdit cls="w-3.5 h-3.5" />
@@ -769,7 +689,6 @@ const CouncilManagement = () => {
               </tbody>
             </table>
 
-            {/* Table footer info */}
             <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/40">
               <p className="text-xs text-gray-400">
                 Tổng cộng <span className="font-semibold text-gray-600">{councils.length}</span> hội đồng
@@ -779,15 +698,15 @@ const CouncilManagement = () => {
         </div>
       </main>
 
-      {/* Council Config Modal */}
+      {/* Council Config Modal - NOW USING editCouncil PROP */}
       {modalOpen && (
         <CouncilModal
+          initialData={editCouncil}
           onClose={() => setModalOpen(false)}
           onSave={handleSave}
         />
       )}
 
-      {/* Toast */}
       {toast.visible && <Toast msg={toast.msg} />}
     </div>
   );
