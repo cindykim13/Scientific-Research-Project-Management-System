@@ -44,20 +44,28 @@ public class MinuteServiceImpl implements MinuteService {
 
     @Override
     public MinuteResponse submitMinute(MinuteRequest request, String actorEmail) {
+        Topic topic = topicRepository.findById(request.getTopicId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Topic not found with id: " + request.getTopicId()));
+        if (topic.getAssignedCouncil() == null) {
+            throw new IllegalStateException("Topic has no assigned council");
+        }
+
+        Long councilId = topic.getAssignedCouncil().getCouncilId();
         CouncilMember membership = councilMemberRepository
-                .findByCouncilCouncilIdAndUserEmail(request.getCouncilId(), actorEmail)
+                .findByCouncilCouncilIdAndUserEmail(councilId, actorEmail)
                 .orElseThrow(() -> new AccessDeniedException("Not a member of this council"));
 
         if (membership.getCouncilRole() != CouncilRole.SECRETARY) {
             throw new AccessDeniedException("Only the council secretary may submit meeting minutes");
         }
 
-        Council council = councilRepository.findById(request.getCouncilId())
+        Council council = councilRepository.findById(councilId)
                 .orElseThrow(() -> new EntityNotFoundException(
-                        "Council not found with id: " + request.getCouncilId()));
+                        "Council not found with id: " + councilId));
 
         List<CouncilMember> nonSecretaries = councilMemberRepository
-                .findByCouncilCouncilId(request.getCouncilId())
+                .findByCouncilCouncilId(councilId)
                 .stream()
                 .filter(m -> m.getCouncilRole() != CouncilRole.SECRETARY)
                 .toList();
@@ -67,7 +75,8 @@ public class MinuteServiceImpl implements MinuteService {
         }
 
         List<Evaluation> submittedEvaluations = evaluationRepository
-                .findByCouncilMemberInAndSubmissionStatus(nonSecretaries, SubmissionStatus.SUBMITTED);
+                .findByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+                        topic.getTopicId(), nonSecretaries, SubmissionStatus.SUBMITTED);
 
         if (submittedEvaluations.size() != nonSecretaries.size()) {
             throw new IllegalStateException(
@@ -85,7 +94,7 @@ public class MinuteServiceImpl implements MinuteService {
                 .filter(s -> !s.isEmpty())
                 .orElse("(none)");
 
-        Optional<Minute> existing = minuteRepository.findByCouncilCouncilId(request.getCouncilId());
+        Optional<Minute> existing = minuteRepository.findByTopicTopicId(topic.getTopicId());
         Minute minute;
         if (existing.isPresent()) {
             minute = existing.get();
@@ -93,9 +102,12 @@ public class MinuteServiceImpl implements MinuteService {
             minute.setSynthesizedComments(comments);
             minute.setFinalDecision(request.getFinalDecision());
             minute.setLegalConfirmation(Boolean.TRUE.equals(request.getLegalConfirmation()));
+            minute.setCouncil(council);
+            minute.setTopic(topic);
         } else {
             minute = Minute.builder()
                     .council(council)
+                    .topic(topic)
                     .averageScore(averageScore)
                     .synthesizedComments(comments)
                     .finalDecision(request.getFinalDecision())
@@ -104,7 +116,7 @@ public class MinuteServiceImpl implements MinuteService {
         }
 
         Minute saved = minuteRepository.save(minute);
-        return toMinuteResponse(saved, council);
+        return toMinuteResponse(saved, council, topic);
     }
 
     @Override
@@ -131,16 +143,17 @@ public class MinuteServiceImpl implements MinuteService {
         }
 
         Council council = topic.getAssignedCouncil();
-        Minute minute = minuteRepository.findByCouncilCouncilId(council.getCouncilId())
+        Minute minute = minuteRepository.findByTopicTopicId(topic.getTopicId())
                 .orElseThrow(() -> new EntityNotFoundException(
-                        "No meeting minutes recorded for this topic's council yet"));
+                        "No meeting minutes recorded for this topic yet"));
 
-        return toMinuteResponse(minute, council);
+        return toMinuteResponse(minute, council, topic);
     }
 
-    private MinuteResponse toMinuteResponse(Minute minute, Council council) {
+    private MinuteResponse toMinuteResponse(Minute minute, Council council, Topic topic) {
         return MinuteResponse.builder()
                 .minuteId(minute.getMinuteId())
+                .topicId(topic.getTopicId())
                 .councilId(council.getCouncilId())
                 .councilName(council.getCouncilName())
                 .averageScore(minute.getAverageScore())

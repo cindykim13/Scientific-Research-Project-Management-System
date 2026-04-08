@@ -42,5 +42,5 @@ public interface UserService {
      * @param request payload carrying the desired active state
      * @return the updated user profile
      */
-    UserResponse updateUserStatus(Long id, UpdateUserStatusRequest request);
+    UserResponse updateUserStatus(Long id, UpdateUserStatusRequest request, String actorEmail);
 }

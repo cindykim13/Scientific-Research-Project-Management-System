@@ -1,5 +1,7 @@
 package com.researchsystem.backend.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.researchsystem.backend.domain.enums.SystemRole;
 import jakarta.persistence.*;
 import lombok.*;
@@ -24,6 +26,7 @@ public class User {
     @Column(name = "email", nullable = false, unique = true, length = 255)
     private String email;
 
+    @JsonIgnore
     @Column(name = "password_hash", nullable = false, length = 60)
     private String passwordHash;
 
@@ -50,6 +53,7 @@ public class User {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id", nullable = true)
+    @JsonIgnoreProperties({"users", "topics"})
     private Department department;
 
     // -----------------------------------------------------------------------
@@ -63,6 +67,7 @@ public class User {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"investigator"})
     private List<Topic> topics = new ArrayList<>();
 
     @Builder.Default
@@ -72,6 +77,7 @@ public class User {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"user"})
     private List<CouncilMember> councilMembers = new ArrayList<>();
 
     @Builder.Default
@@ -81,5 +87,6 @@ public class User {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"actor"})
     private List<AuditLog> auditLogs = new ArrayList<>();
 }

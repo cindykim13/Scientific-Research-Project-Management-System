@@ -12,9 +12,15 @@ import java.util.Optional;
 @Repository
 public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
 
-    long countByCouncilMemberInAndSubmissionStatus(List<CouncilMember> members, SubmissionStatus status);
+    long countByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+            Long topicId,
+            List<CouncilMember> members,
+            SubmissionStatus status);
 
-    List<Evaluation> findByCouncilMemberInAndSubmissionStatus(List<CouncilMember> members, SubmissionStatus status);
+    List<Evaluation> findByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+            Long topicId,
+            List<CouncilMember> members,
+            SubmissionStatus status);
 
-    Optional<Evaluation> findByCouncilMemberCouncilMemberId(Long councilMemberId);
+    Optional<Evaluation> findByTopicTopicIdAndCouncilMemberCouncilMemberId(Long topicId, Long councilMemberId);
 }

@@ -19,22 +19,17 @@ import java.math.BigDecimal;
 @Builder
 public class UpdateTopicRequest {
 
-    @NotBlank(message = "Vietnamese title must not be blank")
     @Size(max = 255)
     private String titleVn;
 
-    @NotNull(message = "Research type must not be null")
     private ResearchType researchType;
 
-    @NotBlank(message = "Research field must not be blank")
     @Size(max = 100)
     private String researchField;
 
-    @NotNull(message = "Duration must not be null")
     @Min(value = 1, message = "Duration must be at least 1 month")
     @Max(value = 60, message = "Duration must not exceed 60 months")
     private Integer durationMonths;
 
-    @NotNull(message = "Expected budget must not be null")
     private BigDecimal expectedBudget;
 }

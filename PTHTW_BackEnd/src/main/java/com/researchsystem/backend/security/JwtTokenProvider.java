@@ -12,6 +12,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.time.Instant;
 import java.util.Date;
 
 @Slf4j
@@ -68,5 +69,21 @@ public class JwtTokenProvider {
             log.warn("Invalid JWT token: {}", ex.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Expiration instant from a signed JWT (used for blacklist retention and housekeeping).
+     */
+    public Instant getExpirationInstant(String token) {
+        Date exp = Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getExpiration();
+        if (exp == null) {
+            throw new JwtException("Token has no expiration claim");
+        }
+        return exp.toInstant();
     }
 }

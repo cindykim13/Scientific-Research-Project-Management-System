@@ -56,14 +56,25 @@ target/
 *.nar
 *.log
 
+uploads/
+attachments/
+
 # 6. DỮ LIỆU CỦA DOCKER VÀ DATABASE LOCAL
 # ------------------------------------------
 mysql_data/
 db_data/
 pgdata/
 
+# 7. TÀI LIỆU BÁO CÁO & NHẬT KÝ THỰC THI (Documentation & Logs)
+# ------------------------------------------
+# Bỏ qua toàn bộ các file Markdown (nhật ký AI, kịch bản test, báo cáo lỗi)
+*.md
+# Bỏ qua các file cấu hình Postman nội bộ (nếu có)
+*postman_collection.json
+*postman_environment.json
+
 # ==========================================
-# LƯU Ý CHO TEAM: CÁC FILE ĐƯỢC PHÉP COMMIT
+# LƯU Ý CHO TEAM: CÁC FILE ĐƯỢC PHÉP COMMIT (NGOẠI LỆ)
 # ==========================================
-# Các file tài liệu (.pdf), docker-compose.yml, README.md 
-# ở thư mục gốc SẼ ĐƯỢC giữ lại và đẩy lên Git để team cùng đọc.
+# Các file tài liệu gốc, cấu hình docker sẽ được giữ lại
+!README.md

@@ -6,6 +6,7 @@ import com.researchsystem.backend.domain.entity.Evaluation;
 import com.researchsystem.backend.domain.entity.Topic;
 import com.researchsystem.backend.domain.entity.TopicAttachment;
 import com.researchsystem.backend.domain.entity.User;
+import com.researchsystem.backend.domain.enums.CouncilRole;
 import com.researchsystem.backend.domain.enums.SubmissionStatus;
 import com.researchsystem.backend.domain.enums.SystemRole;
 import com.researchsystem.backend.domain.enums.TopicStatus;
@@ -19,6 +20,7 @@ import com.researchsystem.backend.dto.response.TopicDetailResponse;
 import com.researchsystem.backend.dto.response.TopicListResponse;
 import com.researchsystem.backend.mapper.AuditLogMapper;
 import com.researchsystem.backend.mapper.TopicMapper;
+import com.researchsystem.backend.notification.TopicStatusChangedEvent;
 import com.researchsystem.backend.repository.CouncilMemberRepository;
 import com.researchsystem.backend.repository.DepartmentRepository;
 import com.researchsystem.backend.repository.EvaluationRepository;
@@ -32,11 +34,15 @@ import org.springframework.security.access.AccessDeniedException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.dao.DataIntegrityViolationException;
+import com.researchsystem.backend.util.LevenshteinSimilarity;
+import com.researchsystem.backend.util.AttachmentUploadWhitelist;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -63,6 +69,7 @@ public class TopicServiceImpl implements TopicService {
     private final UserRepository userRepository;
     private final DepartmentRepository departmentRepository;
     private final AuditLogService auditLogService;
+    private final ApplicationEventPublisher eventPublisher;
     private final TopicMapper topicMapper;
     private final AuditLogMapper auditLogMapper;
     private final CouncilMemberRepository councilMemberRepository;
@@ -108,7 +115,10 @@ public class TopicServiceImpl implements TopicService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Department not found with id: " + request.getManagingDepartmentId()));
 
+        enforceSemanticLexicalDuplication(request.getTitleVn());
+
         Topic topic = topicMapper.toEntity(request);
+        topic.setTopicCode("TOPIC-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         topic.setTopicStatus(TopicStatus.DRAFT);
         topic.setInvestigator(investigator);
         topic.setManagingDepartment(department);
@@ -117,6 +127,29 @@ public class TopicServiceImpl implements TopicService {
         Topic saved = topicRepository.save(topic);
 
         return topicMapper.toDetailResponse(saved);
+    }
+
+    /**
+     * Prevents semantic lexical duplication: if the incoming title overlaps
+     * too strongly (> 0.50 similarity) with any existing persisted topic title,
+     * the transaction is aborted with HTTP 409 (DataIntegrityViolationException).
+     */
+    private void enforceSemanticLexicalDuplication(String incomingTitleVn) {
+        // Defensive: controller/validation should prevent null/blank, but keep safe.
+        String safeIncoming = incomingTitleVn == null ? "" : incomingTitleVn;
+
+        double threshold = 0.50d;
+        List<String> existingTitles = topicRepository.findAllTitleVn();
+
+        for (String existing : existingTitles) {
+            double similarity = LevenshteinSimilarity.normalizedSimilarity(safeIncoming, existing);
+            if (similarity > threshold) {
+                throw new DataIntegrityViolationException(
+                        "Semantic duplicate topic title detected (similarity=" + similarity +
+                                "). Please revise your research direction and provide a more distinct title."
+                );
+            }
+        }
     }
 
     @Override
@@ -130,7 +163,7 @@ public class TopicServiceImpl implements TopicService {
                         "Topic not found with id: " + topicId));
 
         TopicStatus currentStatus = topic.getTopicStatus();
-        TopicStatus targetStatus = request.getNewStatus();
+        TopicStatus targetStatus = request.getTargetStatus();
 
         Set<TopicStatus> allowedTargets = VALID_TRANSITIONS.getOrDefault(
                 currentStatus, EnumSet.noneOf(TopicStatus.class));
@@ -146,10 +179,11 @@ public class TopicServiceImpl implements TopicService {
         enforceStatusChangeAuthorization(actor, topic, currentStatus, targetStatus);
 
         auditLogService.recordLog(topicId, currentStatus, targetStatus,
-                request.getFeedbackNote(), actorEmail);
+                request.getFeedbackMessage(), actorEmail);
 
         topic.setTopicStatus(targetStatus);
         Topic saved = topicRepository.save(topic);
+        eventPublisher.publishEvent(new TopicStatusChangedEvent(topicId, targetStatus, actorEmail));
 
         return topicMapper.toDetailResponse(saved);
     }
@@ -187,6 +221,10 @@ public class TopicServiceImpl implements TopicService {
                     "Only DRAFT topics can be deleted. Current status: " + topic.getTopicStatus());
         }
 
+        if (!actorEmail.equals(topic.getInvestigator().getEmail())) {
+            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this topic");
+        }
+
         topicRepository.delete(topic);
     }
 
@@ -201,11 +239,25 @@ public class TopicServiceImpl implements TopicService {
                     "Only DRAFT topics can be edited. Current status: " + topic.getTopicStatus());
         }
 
-        topic.setTitleVn(request.getTitleVn());
-        topic.setResearchType(request.getResearchType());
-        topic.setResearchField(request.getResearchField());
-        topic.setDurationMonths(request.getDurationMonths());
-        topic.setExpectedBudget(request.getExpectedBudget());
+        if (!actorEmail.equals(topic.getInvestigator().getEmail())) {
+            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this topic");
+        }
+
+        if (request.getTitleVn() != null) {
+            topic.setTitleVn(request.getTitleVn());
+        }
+        if (request.getResearchType() != null) {
+            topic.setResearchType(request.getResearchType());
+        }
+        if (request.getResearchField() != null) {
+            topic.setResearchField(request.getResearchField());
+        }
+        if (request.getDurationMonths() != null) {
+            topic.setDurationMonths(request.getDurationMonths());
+        }
+        if (request.getExpectedBudget() != null) {
+            topic.setExpectedBudget(request.getExpectedBudget());
+        }
 
         Topic saved = topicRepository.save(topic);
         return topicMapper.toDetailResponse(saved);
@@ -217,8 +269,15 @@ public class TopicServiceImpl implements TopicService {
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + topicId));
 
+        if (!actorEmail.equals(topic.getInvestigator().getEmail())) {
+            throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this topic");
+        }
+
+        // Security: validate allowed attachment types before any disk write.
+        String validatedContentType = AttachmentUploadWhitelist.validateAndNormalizeContentType(file);
+
         String originalFilename = file.getOriginalFilename() != null
-                ? file.getOriginalFilename() : "unknown";
+                ? Paths.get(file.getOriginalFilename()).getFileName().toString() : "unknown";
         String storedFileName = UUID.randomUUID() + "_" + originalFilename;
         Path targetPath = Paths.get(uploadDir).resolve(storedFileName);
 
@@ -232,7 +291,7 @@ public class TopicServiceImpl implements TopicService {
         int newVersion = topic.getFileVersion() + 1;
         topic.setFileVersion(newVersion);
 
-        String contentType = file.getContentType() != null ? file.getContentType() : "application/octet-stream";
+        String contentType = validatedContentType;
 
         TopicAttachment attachment = TopicAttachment.builder()
                 .topic(topic)
@@ -242,22 +301,40 @@ public class TopicServiceImpl implements TopicService {
                 .build();
 
         topic.getTopicAttachments().add(attachment);
-        topicRepository.save(topic);
+        Topic saved = topicRepository.saveAndFlush(topic);
+        TopicAttachment savedAttachment = saved.getTopicAttachments().get(saved.getTopicAttachments().size() - 1);
 
         return AttachmentResponse.builder()
-                .attachmentId(attachment.getAttachmentId())
-                .documentType(attachment.getDocumentType())
-                .fileUri(attachment.getFileUri())
-                .uploadedAt(attachment.getUploadedAt())
-                .fileVersion(attachment.getFileVersion())
+                .attachmentId(savedAttachment.getAttachmentId())
+                .documentType(savedAttachment.getDocumentType())
+                .fileUri(savedAttachment.getFileUri())
+                .uploadedAt(savedAttachment.getUploadedAt())
+                .fileVersion(savedAttachment.getFileVersion())
                 .build();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<AuditLogResponse> getAuditLogs(Long topicId) {
+    public List<AuditLogResponse> getAuditLogs(Long topicId, String actorEmail) {
         Topic topic = topicRepository.findById(topicId)
                 .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + topicId));
+
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + actorEmail));
+
+        // Zero-Trust Ownership Matrix:
+        // ADMIN / MANAGER → unconditional access
+        // RESEARCHER      → MUST be the exact investigator of this topic
+        // All others      → denied
+        if (actor.getSystemRole() != SystemRole.ADMIN
+                && actor.getSystemRole() != SystemRole.MANAGER) {
+            if (actor.getSystemRole() != SystemRole.RESEARCHER
+                    || !investigatorMatches(actor, topic)) {
+                throw new AccessDeniedException(
+                        "You are not authorized to view audit logs for this topic.");
+            }
+        }
+
         return topic.getAuditLogs().stream()
                 .map(auditLogMapper::toResponse)
                 .toList();
@@ -270,22 +347,45 @@ public class TopicServiceImpl implements TopicService {
                 .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + topicId));
 
         if (topic.getAssignedCouncil() == null) {
-            throw new IllegalStateException("No council has been assigned to topic id: " + topicId);
+            throw new IllegalStateException(
+                    "Đề tài chưa được gán hội đồng xét duyệt; không thể tính điểm trung bình.");
         }
 
         Long councilId = topic.getAssignedCouncil().getCouncilId();
         List<CouncilMember> members = councilMemberRepository.findByCouncilCouncilId(councilId);
-        List<Evaluation> submitted = evaluationRepository
-                .findByCouncilMemberInAndSubmissionStatus(members, SubmissionStatus.SUBMITTED);
+        List<CouncilMember> votingMembers = members.stream()
+                .filter(m -> m.getCouncilRole() != CouncilRole.SECRETARY)
+                .toList();
 
-        if (submitted.isEmpty()) {
-            throw new IllegalStateException("No submitted evaluations found for topic id: " + topicId);
+        if (votingMembers.isEmpty()) {
+            throw new IllegalStateException(
+                    "Không có thành viên hội đồng đủ điều kiện chấm điểm (vai trò thư ký được loại trừ) "
+                            + "để tính điểm trung bình cho đề tài này.");
         }
 
-        return submitted.stream()
+        List<Evaluation> submitted = evaluationRepository
+                .findByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+                        topicId, votingMembers, SubmissionStatus.SUBMITTED);
+
+        if (submitted.isEmpty()) {
+            throw new IllegalStateException(
+                    "Chưa có phiếu chấm đã gửi từ thành viên hội đồng (không tính thư ký) "
+                            + "để tính điểm trung bình cho đề tài này.");
+        }
+
+        List<BigDecimal> scores = submitted.stream()
                 .map(Evaluation::getTotalScore)
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (scores.isEmpty()) {
+            throw new IllegalStateException(
+                    "Không có điểm tổng hợp hợp lệ trên các phiếu chấm đã gửi để tính điểm trung bình.");
+        }
+
+        return scores.stream()
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(submitted.size()), 2, RoundingMode.HALF_UP);
+                .divide(BigDecimal.valueOf(scores.size()), 2, RoundingMode.HALF_UP);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.researchsystem.backend.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -43,9 +44,11 @@ public class AuditLog {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "topic_id", nullable = false)
+    @JsonIgnoreProperties({"auditLogs", "topicAttachments", "investigator", "managingDepartment", "assignedCouncil"})
     private Topic topic;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "actor_id", nullable = false)
+    @JsonIgnoreProperties({"topics", "councilMembers", "auditLogs", "passwordHash", "department"})
     private User actor;
 }

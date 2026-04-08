@@ -33,10 +33,10 @@ public class EvaluationController {
     @PostMapping
     @PreAuthorize("hasRole('COUNCIL')")
     @Operation(
-            summary = "Submit an evaluation score for a council member",
+            summary = "Submit an evaluation score for a topic by a council member",
             description = "COUNCIL expert submits scored evaluation across seven criteria. " +
                           "The totalScore is computed automatically as the sum of individual scores. " +
-                          "Each council member may only submit one evaluation per council."
+                          "Each council member may only submit one evaluation per topic."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Evaluation submitted successfully"),

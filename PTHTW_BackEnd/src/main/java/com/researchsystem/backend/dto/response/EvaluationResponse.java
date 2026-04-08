@@ -16,6 +16,7 @@ public class EvaluationResponse {
 
     private Long evaluationId;
     private Long councilMemberId;
+    private Long topicId;
     private String evaluatorFullName;
     private BigDecimal scoreUrgency;
     private BigDecimal scoreContent;

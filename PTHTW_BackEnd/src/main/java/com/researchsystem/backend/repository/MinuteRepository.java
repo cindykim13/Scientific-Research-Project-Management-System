@@ -9,5 +9,5 @@ import java.util.Optional;
 @Repository
 public interface MinuteRepository extends JpaRepository<Minute, Long> {
 
-    Optional<Minute> findByCouncilCouncilId(Long councilId);
+    Optional<Minute> findByTopicTopicId(Long topicId);
 }

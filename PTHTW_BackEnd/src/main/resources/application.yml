@@ -45,6 +45,25 @@ app:
     # Bắt buộc sử dụng chuỗi mã hóa chuẩn BASE64 (Dưới đây là chuỗi an toàn 512-bit)
     secret: V1hVbURGOWV3N2pGNTZzSzh4MnpCNnE4M3Y1YjlBMEQzRjdIMUwyTTROOFA5UVEyVjRZNlg3WjhBMUMyRTNGNA==
     expiration: 86400000
+    # Opaque refresh token TTL (default 7 days)
+    refresh-expiration: 604800000
+
+# ===================================================================
+# 6. ACTUATOR / TELEMETRY
+# ===================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
 
 # ===================================================================
 # 5. SPRINGDOC CONFIGURATION

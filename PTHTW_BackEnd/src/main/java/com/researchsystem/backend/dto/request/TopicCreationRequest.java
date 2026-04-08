@@ -16,13 +16,11 @@ import java.math.BigDecimal;
 public class TopicCreationRequest {
 
     @NotBlank
-    @Size(max = 50)
-    @Pattern(regexp = "^[A-Z0-9-]+$")
-    private String topicCode;
-
-    @NotBlank
     @Size(max = 255)
     private String titleVn;
+
+    @Size(max = 255)
+    private String titleEn;
 
     @NotNull
     private ResearchType researchType;

@@ -1,5 +1,6 @@
 package com.researchsystem.backend.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -45,6 +46,7 @@ public class Council {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"council"})
     private List<CouncilMember> councilMembers = new ArrayList<>();
 
     @Builder.Default
@@ -54,13 +56,16 @@ public class Council {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"assignedCouncil"})
     private List<Topic> topics = new ArrayList<>();
 
-    @OneToOne(
+    @Builder.Default
+    @OneToMany(
             mappedBy = "council",
             fetch = FetchType.LAZY,
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
-    private Minute minute;
+    @JsonIgnoreProperties({"council", "topic"})
+    private List<Minute> minutes = new ArrayList<>();
 }

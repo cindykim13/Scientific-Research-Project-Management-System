@@ -154,7 +154,14 @@ public class CouncilServiceImpl implements CouncilService {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean checkCouncilReadiness(Long councilId) {
+    public boolean checkCouncilReadiness(Long councilId, Long topicId) {
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + topicId));
+        if (topic.getAssignedCouncil() == null
+                || !Objects.equals(topic.getAssignedCouncil().getCouncilId(), councilId)) {
+            throw new IllegalStateException("Topic " + topicId + " is not assigned to council " + councilId);
+        }
+
         List<CouncilMember> allMembers = councilMemberRepository.findByCouncilCouncilId(councilId);
         List<CouncilMember> nonSecretaries = allMembers.stream()
                 .filter(m -> m.getCouncilRole() != CouncilRole.SECRETARY)
@@ -164,8 +171,8 @@ public class CouncilServiceImpl implements CouncilService {
             return false;
         }
 
-        long submittedCount = evaluationRepository.countByCouncilMemberInAndSubmissionStatus(
-                nonSecretaries, SubmissionStatus.SUBMITTED);
+        long submittedCount = evaluationRepository.countByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+                topicId, nonSecretaries, SubmissionStatus.SUBMITTED);
 
         return nonSecretaries.size() == submittedCount;
     }
@@ -212,6 +219,12 @@ public class CouncilServiceImpl implements CouncilService {
                         "Current status: " + topic.getTopicStatus());
             }
 
+            for (CouncilMember cm : council.getCouncilMembers()) {
+                if (cm.getUser().getUserId().equals(topic.getInvestigator().getUserId())) {
+                    throw new org.springframework.security.access.AccessDeniedException("Conflict of Interest: Investigator is a member of the assigned council.");
+                }
+            }
+
             topic.setAssignedCouncil(council);
             topic.setTopicStatus(TopicStatus.PENDING_COUNCIL);
             topicRepository.save(topic);
@@ -227,17 +240,23 @@ public class CouncilServiceImpl implements CouncilService {
 
     @Override
     @Transactional(readOnly = true)
-    public CouncilReadinessResponse getEvaluationStatus(Long councilId) {
+    public CouncilReadinessResponse getEvaluationStatus(Long councilId, Long topicId) {
         councilRepository.findById(councilId)
                 .orElseThrow(() -> new EntityNotFoundException("Council not found with id: " + councilId));
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + topicId));
+        if (topic.getAssignedCouncil() == null
+                || !Objects.equals(topic.getAssignedCouncil().getCouncilId(), councilId)) {
+            throw new IllegalStateException("Topic " + topicId + " is not assigned to council " + councilId);
+        }
 
         List<CouncilMember> allMembers = councilMemberRepository.findByCouncilCouncilId(councilId);
         List<CouncilMember> nonSecretaries = allMembers.stream()
                 .filter(m -> m.getCouncilRole() != CouncilRole.SECRETARY)
                 .toList();
 
-        long submittedCount = evaluationRepository.countByCouncilMemberInAndSubmissionStatus(
-                nonSecretaries, SubmissionStatus.SUBMITTED);
+        long submittedCount = evaluationRepository.countByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+                topicId, nonSecretaries, SubmissionStatus.SUBMITTED);
 
         boolean ready = !nonSecretaries.isEmpty() && nonSecretaries.size() == submittedCount;
         String message = ready
@@ -247,6 +266,7 @@ public class CouncilServiceImpl implements CouncilService {
 
         return CouncilReadinessResponse.builder()
                 .councilId(councilId)
+                .topicId(topicId)
                 .ready(ready)
                 .totalNonSecretaries(nonSecretaries.size())
                 .submittedCount(submittedCount)

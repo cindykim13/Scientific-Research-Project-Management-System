@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 public class TopicStatusChangeRequest {
 
     @NotNull
-    private TopicStatus newStatus;
+    private TopicStatus targetStatus;
 
-    private String feedbackNote;
+    private String feedbackMessage;
 }

@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
@@ -76,6 +77,7 @@ public class CouncilController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN', 'COUNCIL')")
     @Operation(
             summary = "Get full details of a council",
             description = "Returns complete council information including all members with roles " +
@@ -197,7 +199,9 @@ public class CouncilController {
             @ApiResponse(responseCode = "400", description = "Bad Request"),
             @ApiResponse(responseCode = "403", description = "Forbidden — COUNCIL role required")
     })
-    public ResponseEntity<CouncilReadinessResponse> getEvaluationStatus(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(councilService.getEvaluationStatus(id));
+    public ResponseEntity<CouncilReadinessResponse> getEvaluationStatus(
+            @PathVariable("id") Long id,
+            @RequestParam("topicId") Long topicId) {
+        return ResponseEntity.ok(councilService.getEvaluationStatus(id, topicId));
     }
 }

@@ -1,5 +1,6 @@
 package com.researchsystem.backend.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -39,5 +40,6 @@ public class TopicAttachment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "topic_id", nullable = false)
+    @JsonIgnoreProperties({"topicAttachments", "auditLogs", "investigator", "managingDepartment", "assignedCouncil"})
     private Topic topic;
 }

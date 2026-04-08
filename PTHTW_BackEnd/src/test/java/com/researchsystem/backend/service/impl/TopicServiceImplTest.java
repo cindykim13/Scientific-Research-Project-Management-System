@@ -6,6 +6,7 @@ import com.researchsystem.backend.domain.entity.CouncilMember;
 import com.researchsystem.backend.domain.entity.Department;
 import com.researchsystem.backend.domain.entity.Evaluation;
 import com.researchsystem.backend.domain.entity.Topic;
+import com.researchsystem.backend.domain.entity.TopicAttachment;
 import com.researchsystem.backend.domain.entity.User;
 import com.researchsystem.backend.domain.enums.CouncilRole;
 import com.researchsystem.backend.domain.enums.ResearchType;
@@ -40,12 +41,15 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -61,6 +65,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -98,6 +103,7 @@ class TopicServiceImplTest {
     @Mock private UserRepository          userRepository;
     @Mock private DepartmentRepository    departmentRepository;
     @Mock private AuditLogService         auditLogService;
+    @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private TopicMapper             topicMapper;
     @Mock private AuditLogMapper          auditLogMapper;
     @Mock private CouncilMemberRepository councilMemberRepository;
@@ -127,14 +133,18 @@ class TopicServiceImplTest {
         draftTopic.setFileVersion(1);
         draftTopic.setTopicAttachments(new ArrayList<>());
         draftTopic.setAuditLogs(new ArrayList<>());
+        User investigatorFixture = new User();
+        investigatorFixture.setEmail("researcher@test.com");
+        investigatorFixture.setSystemRole(SystemRole.RESEARCHER);
+        draftTopic.setInvestigator(investigatorFixture);
 
         detailResponse = new TopicDetailResponse();
-        detailResponse.setId(1L);
+        detailResponse.setTopicId(1L);
         detailResponse.setTopicCode("CS-001");
         detailResponse.setTopicStatus(TopicStatus.PENDING_REVIEW);
 
         listResponse = new TopicListResponse();
-        listResponse.setId(1L);
+        listResponse.setTopicId(1L);
         listResponse.setTopicCode("CS-001");
 
         pageable = PageRequest.of(0, 10);
@@ -156,8 +166,8 @@ class TopicServiceImplTest {
         void draftToPendingReview_success() {
             // Arrange
             TopicStatusChangeRequest request = new TopicStatusChangeRequest();
-            request.setNewStatus(TopicStatus.PENDING_REVIEW);
-            request.setFeedbackNote("Initial submission by investigator");
+            request.setTargetStatus(TopicStatus.PENDING_REVIEW);
+            request.setFeedbackMessage("Initial submission by investigator");
 
             User investigator = new User();
             investigator.setEmail("researcher@test.com");
@@ -199,7 +209,7 @@ class TopicServiceImplTest {
             approvedTopic.setFileVersion(1);
 
             TopicStatusChangeRequest request = new TopicStatusChangeRequest();
-            request.setNewStatus(TopicStatus.PENDING_REVIEW);
+            request.setTargetStatus(TopicStatus.PENDING_REVIEW);
 
             when(topicRepository.findById(2L)).thenReturn(Optional.of(approvedTopic));
 
@@ -217,7 +227,7 @@ class TopicServiceImplTest {
         void topicNotFound_throwsEntityNotFoundException() {
             // Arrange
             TopicStatusChangeRequest request = new TopicStatusChangeRequest();
-            request.setNewStatus(TopicStatus.PENDING_REVIEW);
+            request.setTargetStatus(TopicStatus.PENDING_REVIEW);
 
             when(topicRepository.findById(99L)).thenReturn(Optional.empty());
 
@@ -243,8 +253,8 @@ class TopicServiceImplTest {
             topic.setFileVersion(1);
 
             TopicStatusChangeRequest request = new TopicStatusChangeRequest();
-            request.setNewStatus(to);
-            request.setFeedbackNote("review note");
+            request.setTargetStatus(to);
+            request.setFeedbackMessage("review note");
 
             when(topicRepository.findById(10L)).thenReturn(Optional.of(topic));
             when(topicRepository.save(any())).thenReturn(topic);
@@ -280,7 +290,7 @@ class TopicServiceImplTest {
             topic.setFileVersion(1);
 
             TopicStatusChangeRequest request = new TopicStatusChangeRequest();
-            request.setNewStatus(to);
+            request.setTargetStatus(to);
 
             when(topicRepository.findById(10L)).thenReturn(Optional.of(topic));
 
@@ -314,7 +324,7 @@ class TopicServiceImplTest {
             dept.setDepartmentName("CS Department");
 
             TopicCreationRequest request = new TopicCreationRequest();
-            request.setTopicCode("CS-001");
+
             request.setTitleVn("Đề tài nghiên cứu");
             request.setResearchType(ResearchType.BASIC);
             request.setResearchField("Computer Science");
@@ -618,13 +628,21 @@ class TopicServiceImplTest {
             ReflectionTestUtils.setField(topicService, "uploadDir", tempDir.toString());
 
             MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
             when(file.getOriginalFilename()).thenReturn("research.pdf");
             when(file.getInputStream())
                     .thenReturn(new ByteArrayInputStream("pdf-content".getBytes()));
             when(file.getContentType()).thenReturn("application/pdf");
 
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
-            when(topicRepository.save(any(Topic.class))).thenReturn(draftTopic);
+            when(topicRepository.saveAndFlush(any(Topic.class))).thenAnswer(invocation -> {
+                Topic t = invocation.getArgument(0);
+                TopicAttachment a = t.getTopicAttachments().get(t.getTopicAttachments().size() - 1);
+                if (a.getAttachmentId() == null) {
+                    a.setAttachmentId(100L);
+                }
+                return t;
+            });
 
             // Act
             AttachmentResponse response = topicService.uploadAttachment(1L, file, "researcher@test.com");
@@ -634,53 +652,43 @@ class TopicServiceImplTest {
             assertEquals("application/pdf", response.getDocumentType());
             assertEquals(2, response.getFileVersion(),
                     "fileVersion must increment from 1 to 2");
-            verify(topicRepository, times(1)).save(any(Topic.class));
+            verify(topicRepository, times(1)).saveAndFlush(any(Topic.class));
         }
 
         @Test
-        @DisplayName("null contentType: defaults to 'application/octet-stream'")
+        @DisplayName("null contentType: rejected by attachment MIME allowlist (415)")
         void nullContentType_usesDefaultContentType(@TempDir Path tempDir) throws IOException {
             // Arrange
             ReflectionTestUtils.setField(topicService, "uploadDir", tempDir.toString());
 
             MultipartFile file = mock(MultipartFile.class);
-            when(file.getOriginalFilename()).thenReturn("binary.bin");
-            when(file.getInputStream())
-                    .thenReturn(new ByteArrayInputStream("bytes".getBytes()));
+            when(file.isEmpty()).thenReturn(false);
+            when(file.getOriginalFilename()).thenReturn("research.pdf");
             when(file.getContentType()).thenReturn(null);
 
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
-            when(topicRepository.save(any(Topic.class))).thenReturn(draftTopic);
 
-            // Act
-            AttachmentResponse response = topicService.uploadAttachment(1L, file, "researcher@test.com");
-
-            // Assert
-            assertEquals("application/octet-stream", response.getDocumentType());
+            // Act & Assert
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                    () -> topicService.uploadAttachment(1L, file, "researcher@test.com"));
+            assertEquals(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getStatusCode());
         }
 
         @Test
-        @DisplayName("null originalFilename: stored file URI contains 'unknown' token")
+        @DisplayName("null originalFilename: rejected before disk write (415)")
         void nullFilename_usesUnknownToken(@TempDir Path tempDir) throws IOException {
             // Arrange
             ReflectionTestUtils.setField(topicService, "uploadDir", tempDir.toString());
 
             MultipartFile file = mock(MultipartFile.class);
+            when(file.isEmpty()).thenReturn(false);
             when(file.getOriginalFilename()).thenReturn(null);
-            when(file.getInputStream())
-                    .thenReturn(new ByteArrayInputStream("bytes".getBytes()));
-            when(file.getContentType()).thenReturn("application/pdf");
 
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
-            when(topicRepository.save(any(Topic.class))).thenReturn(draftTopic);
 
-            // Act
-            AttachmentResponse response = topicService.uploadAttachment(1L, file, "researcher@test.com");
-
-            // Assert
-            assertNotNull(response);
-            assertTrue(response.getFileUri().contains("unknown"),
-                    "fileUri must contain 'unknown' when originalFilename is null");
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                    () -> topicService.uploadAttachment(1L, file, "researcher@test.com"));
+            assertEquals(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getStatusCode());
         }
 
         @Test
@@ -690,8 +698,9 @@ class TopicServiceImplTest {
             ReflectionTestUtils.setField(topicService, "uploadDir", tempDir.toString());
 
             MultipartFile file = mock(MultipartFile.class);
-            // getOriginalFilename IS called before the try-block; getContentType is NOT reached
+            when(file.isEmpty()).thenReturn(false);
             when(file.getOriginalFilename()).thenReturn("test.pdf");
+            when(file.getContentType()).thenReturn("application/pdf");
             when(file.getInputStream()).thenThrow(new IOException("Simulated disk failure"));
 
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
@@ -737,6 +746,12 @@ class TopicServiceImplTest {
 
             draftTopic.getAuditLogs().add(log);
 
+            // The actor must be the investigator (RESEARCHER) or ADMIN/MANAGER to pass the ownership check
+            User investigator = new User();
+            investigator.setEmail("researcher@test.com");
+            investigator.setSystemRole(SystemRole.RESEARCHER);
+            draftTopic.setInvestigator(investigator);
+
             AuditLogResponse logResponse = new AuditLogResponse();
             logResponse.setId(1L);
             logResponse.setPreviousStatus("DRAFT");
@@ -744,10 +759,11 @@ class TopicServiceImplTest {
             logResponse.setFeedbackNote("Submitted by researcher");
 
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
+            when(userRepository.findByEmail("researcher@test.com")).thenReturn(Optional.of(investigator));
             when(auditLogMapper.toResponse(log)).thenReturn(logResponse);
 
             // Act
-            List<AuditLogResponse> result = topicService.getAuditLogs(1L);
+            List<AuditLogResponse> result = topicService.getAuditLogs(1L, "researcher@test.com");
 
             // Assert
             assertNotNull(result);
@@ -762,7 +778,7 @@ class TopicServiceImplTest {
             when(topicRepository.findById(99L)).thenReturn(Optional.empty());
 
             // Act & Assert
-            assertThrows(EntityNotFoundException.class, () -> topicService.getAuditLogs(99L));
+            assertThrows(EntityNotFoundException.class, () -> topicService.getAuditLogs(99L, "any@test.com"));
         }
     }
 
@@ -810,8 +826,8 @@ class TopicServiceImplTest {
             when(topicRepository.findById(1L)).thenReturn(Optional.of(topicWithCouncil));
             when(councilMemberRepository.findByCouncilCouncilId(5L))
                     .thenReturn(List.of(member1, member2));
-            when(evaluationRepository.findByCouncilMemberInAndSubmissionStatus(
-                    List.of(member1, member2), SubmissionStatus.SUBMITTED))
+            when(evaluationRepository.findByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+                    1L, List.of(member1, member2), SubmissionStatus.SUBMITTED))
                     .thenReturn(List.of(eval1, eval2));
 
             // Act
@@ -821,6 +837,72 @@ class TopicServiceImplTest {
             assertNotNull(result);
             assertEquals(0, BigDecimal.valueOf(75.00).compareTo(result),
                     "Expected average of 70 and 80 to be 75.00");
+        }
+
+        @Test
+        @DisplayName("Submitted evaluations from secretary are excluded from the average")
+        void secretaryEvaluationsExcluded() {
+            Council council = new Council();
+            council.setCouncilId(5L);
+
+            Topic topicWithCouncil = new Topic();
+            topicWithCouncil.setTopicId(1L);
+            topicWithCouncil.setAssignedCouncil(council);
+            topicWithCouncil.setFileVersion(1);
+
+            CouncilMember secretary = new CouncilMember();
+            secretary.setCouncilMemberId(1L);
+            secretary.setCouncilRole(CouncilRole.SECRETARY);
+
+            CouncilMember member = new CouncilMember();
+            member.setCouncilMemberId(2L);
+            member.setCouncilRole(CouncilRole.MEMBER);
+
+            Evaluation secretaryEval = new Evaluation();
+            secretaryEval.setTotalScore(BigDecimal.valueOf(99));
+            secretaryEval.setSubmissionStatus(SubmissionStatus.SUBMITTED);
+
+            Evaluation memberEval = new Evaluation();
+            memberEval.setTotalScore(BigDecimal.valueOf(50));
+            memberEval.setSubmissionStatus(SubmissionStatus.SUBMITTED);
+
+            when(topicRepository.findById(1L)).thenReturn(Optional.of(topicWithCouncil));
+            when(councilMemberRepository.findByCouncilCouncilId(5L))
+                    .thenReturn(List.of(secretary, member));
+            when(evaluationRepository.findByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+                    1L, List.of(member), SubmissionStatus.SUBMITTED))
+                    .thenReturn(List.of(memberEval));
+
+            BigDecimal result = topicService.getAverageScore(1L);
+
+            assertEquals(0, BigDecimal.valueOf(50.00).compareTo(result));
+            verify(evaluationRepository, times(1))
+                    .findByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+                            1L, List.of(member), SubmissionStatus.SUBMITTED);
+        }
+
+        @Test
+        @DisplayName("Only secretary council members: throws IllegalStateException; no evaluation query")
+        void onlySecretaryMembers_throwsBeforeRepository() {
+            Council council = new Council();
+            council.setCouncilId(5L);
+
+            Topic topicWithCouncil = new Topic();
+            topicWithCouncil.setTopicId(1L);
+            topicWithCouncil.setAssignedCouncil(council);
+            topicWithCouncil.setFileVersion(1);
+
+            CouncilMember secretary = new CouncilMember();
+            secretary.setCouncilMemberId(1L);
+            secretary.setCouncilRole(CouncilRole.SECRETARY);
+
+            when(topicRepository.findById(1L)).thenReturn(Optional.of(topicWithCouncil));
+            when(councilMemberRepository.findByCouncilCouncilId(5L))
+                    .thenReturn(List.of(secretary));
+
+            assertThrows(IllegalStateException.class, () -> topicService.getAverageScore(1L));
+            verify(evaluationRepository, never()).findByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+                    anyLong(), anyList(), any(SubmissionStatus.class));
         }
 
         @Test
@@ -850,13 +932,13 @@ class TopicServiceImplTest {
 
             when(topicRepository.findById(1L)).thenReturn(Optional.of(topicWithCouncil));
             when(councilMemberRepository.findByCouncilCouncilId(5L)).thenReturn(List.of());
-            when(evaluationRepository.findByCouncilMemberInAndSubmissionStatus(
-                    anyList(), any(SubmissionStatus.class)))
-                    .thenReturn(List.of());
 
             // Act & Assert
             assertThrows(IllegalStateException.class,
                     () -> topicService.getAverageScore(1L));
+
+            verify(evaluationRepository, never()).findByTopicTopicIdAndCouncilMemberInAndSubmissionStatus(
+                    anyLong(), anyList(), any(SubmissionStatus.class));
         }
 
         @Test

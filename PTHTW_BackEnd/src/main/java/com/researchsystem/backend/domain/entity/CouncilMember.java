@@ -1,5 +1,6 @@
 package com.researchsystem.backend.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.researchsystem.backend.domain.enums.CouncilRole;
 import jakarta.persistence.*;
 import lombok.*;
@@ -37,10 +38,12 @@ public class CouncilMember {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "council_id", nullable = false)
+    @JsonIgnoreProperties({"councilMembers", "topics", "minute"})
     private Council council;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnoreProperties({"topics", "councilMembers", "auditLogs", "passwordHash", "department"})
     private User user;
 
     // -----------------------------------------------------------------------
@@ -54,5 +57,6 @@ public class CouncilMember {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"councilMember"})
     private List<Evaluation> evaluations = new ArrayList<>();
 }

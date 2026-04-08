@@ -38,6 +38,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -147,13 +148,15 @@ class TopicIntegrationTest {
 
             // ---- Arrange: build request WITHOUT Lombok builder (critical rule) ----
             TopicCreationRequest request = new TopicCreationRequest();
-            request.setTopicCode("IT-2026-INT-001");
+
             request.setTitleVn("Nghiên cứu ứng dụng AI trong giảng dạy đại học");
             request.setResearchType(ResearchType.BASIC);
             request.setResearchField("Artificial Intelligence");
             request.setDurationMonths(12);
             request.setExpectedBudget(BigDecimal.valueOf(50_000));
             request.setManagingDepartmentId(2L); // seed: Khoa Công nghệ Thông tin (CNTT)
+
+            long topicsBefore = topicRepository.count();
 
             // ---- Act: simulate the ReactJS client POST ----
             mockMvc.perform(
@@ -162,16 +165,16 @@ class TopicIntegrationTest {
                                     .content(objectMapper.writeValueAsString(request)))
                     // ---- Assert: HTTP layer ----
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.topicCode").value("IT-2026-INT-001"))
+                    .andExpect(jsonPath("$.topicCode", matchesPattern("TOPIC-[A-F0-9]{8}")))
                     .andExpect(jsonPath("$.topicStatus").value("DRAFT"));
 
-            // ---- Assert: DB layer — topic must physically exist in H2 ----
-            // Because @Transactional is shared (in-process MockMvc), the topic
-            // saved by the service is visible in the same Hibernate session.
+            assertEquals(topicsBefore + 1, topicRepository.count(),
+                    "A successful POST must persist exactly one new topic row");
+
             Optional<Topic> persisted = topicRepository
                     .findAll()
                     .stream()
-                    .filter(t -> "IT-2026-INT-001".equals(t.getTopicCode()))
+                    .filter(t -> t.getTopicCode() != null && t.getTopicCode().startsWith("TOPIC-"))
                     .findFirst();
 
             assertTrue(persisted.isPresent(),
@@ -185,16 +188,15 @@ class TopicIntegrationTest {
 
         @Test
         @WithMockUser(username = "researcher.fit1@university.edu.vn", roles = "RESEARCHER")
-        @DisplayName("POST /api/v1/topics/ with invalid topicCode → 400 BAD REQUEST, no DB write")
+        @DisplayName("POST /api/v1/topics/ with invalid duration → 400 BAD REQUEST, no DB write")
         void createTopic_invalidTopicCode_returns400AndNothingPersisted() throws Exception {
 
-            // topicCode violates @Pattern(regexp = "^[A-Z0-9-]+$") — contains lowercase
             TopicCreationRequest request = new TopicCreationRequest();
-            request.setTopicCode("invalid-lowercase");
+
             request.setTitleVn("Tiêu đề hợp lệ");
             request.setResearchType(ResearchType.BASIC);
             request.setResearchField("Computer Science");
-            request.setDurationMonths(6);
+            request.setDurationMonths(0);
             request.setExpectedBudget(BigDecimal.valueOf(20_000));
             request.setManagingDepartmentId(2L);
 
@@ -211,11 +213,11 @@ class TopicIntegrationTest {
         }
 
         @Test
-        @DisplayName("POST /api/v1/topics/ without authentication → 403 FORBIDDEN")
+        @DisplayName("POST /api/v1/topics/ without authentication → 401 UNAUTHORIZED")
         void createTopic_unauthenticated_returns403() throws Exception {
 
             TopicCreationRequest request = new TopicCreationRequest();
-            request.setTopicCode("IT-2026-INT-002");
+
             request.setTitleVn("Unauthenticated request");
             request.setResearchType(ResearchType.APPLIED);
             request.setResearchField("Software Engineering");
@@ -227,7 +229,7 @@ class TopicIntegrationTest {
                             post("/api/v1/topics/")
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
         }
     }
 
@@ -302,8 +304,8 @@ class TopicIntegrationTest {
 
             // ---- Arrange: PATCH request payload ----
             TopicStatusChangeRequest changeRequest = new TopicStatusChangeRequest();
-            changeRequest.setNewStatus(TopicStatus.PENDING_REVIEW);
-            changeRequest.setFeedbackNote("Submitted by researcher");
+            changeRequest.setTargetStatus(TopicStatus.PENDING_REVIEW);
+            changeRequest.setFeedbackMessage("Submitted by researcher");
 
             // ---- Act: call the unified status endpoint ----
             mockMvc.perform(
@@ -358,7 +360,7 @@ class TopicIntegrationTest {
 
             // Attempt illegal regression: APPROVED → PENDING_REVIEW
             TopicStatusChangeRequest changeRequest = new TopicStatusChangeRequest();
-            changeRequest.setNewStatus(TopicStatus.PENDING_REVIEW);
+            changeRequest.setTargetStatus(TopicStatus.PENDING_REVIEW);
 
             // ---- Act & Assert (API layer): FSM guard throws IllegalStateException → 409 ----
             mockMvc.perform(
@@ -384,7 +386,7 @@ class TopicIntegrationTest {
         void changeTopicStatus_topicNotFound_returns404() throws Exception {
 
             TopicStatusChangeRequest changeRequest = new TopicStatusChangeRequest();
-            changeRequest.setNewStatus(TopicStatus.PENDING_REVIEW);
+            changeRequest.setTargetStatus(TopicStatus.PENDING_REVIEW);
 
             mockMvc.perform(
                             patch("/api/v1/topics/{id}/status", 999_999L)

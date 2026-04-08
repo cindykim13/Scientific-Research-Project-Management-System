@@ -222,8 +222,10 @@ public class TopicController {
             @ApiResponse(responseCode = "400", description = "Bad Request"),
             @ApiResponse(responseCode = "403", description = "Forbidden — authentication required")
     })
-    public ResponseEntity<List<AuditLogResponse>> getAuditLogs(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(topicService.getAuditLogs(id));
+    public ResponseEntity<List<AuditLogResponse>> getAuditLogs(
+            @PathVariable("id") Long id,
+            @Parameter(hidden = true) Principal principal) {
+        return ResponseEntity.ok(topicService.getAuditLogs(id, principal.getName()));
     }
 
     // -----------------------------------------------------------------------

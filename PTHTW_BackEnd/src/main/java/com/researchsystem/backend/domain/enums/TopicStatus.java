@@ -1,9 +1,12 @@
 package com.researchsystem.backend.domain.enums;
 
+    import com.fasterxml.jackson.annotation.JsonProperty;
+
 public enum TopicStatus {
     /** Bản nháp — chưa nộp */
     DRAFT,
     /** Đã nộp — chờ Trưởng khoa duyệt */
+    @JsonProperty("PENDING_DEPT")
     PENDING_REVIEW,
     /** Trưởng khoa đã duyệt — chờ Phòng QLKH xử lý */
     DEPT_APPROVED,

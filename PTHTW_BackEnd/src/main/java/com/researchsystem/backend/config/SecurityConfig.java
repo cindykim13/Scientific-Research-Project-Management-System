@@ -15,8 +15,10 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -57,10 +59,14 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        AuthenticationEntryPoint authenticationEntryPoint = (request, response, authException) ->
+                response.sendError(HttpStatus.UNAUTHORIZED.value(), "Unauthorized");
+
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(authenticationEntryPoint))
             .authorizeHttpRequests(auth -> auth
                 // Spring Security 7.x secures FORWARD/ERROR/INCLUDE dispatches by default.
                 // Permit them explicitly so internal error forwarding to /error is never blocked.
@@ -84,8 +90,19 @@ public class SecurityConfig {
                     "/error"
                 ).permitAll()
 
-                // Public auth endpoints
-                .requestMatchers("/api/v1/auth/login", "/api/v1/auth/register-test").permitAll()
+                // Public auth endpoints (no access JWT required)
+                .requestMatchers(
+                        "/api/v1/auth/login",
+                        "/api/v1/auth/register-test",
+                        "/api/v1/auth/refresh",
+                        "/api/v1/auth/forgot-password",
+                        "/api/v1/auth/reset-password"
+                ).permitAll()
+
+                // Infrastructure probes (orchestrator / LB friendly)
+                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                .requestMatchers("/actuator/info").permitAll()
+                .requestMatchers("/actuator/**").hasRole("ADMIN")
 
                 // All other requests require a valid JWT
                 .anyRequest().authenticated()

@@ -1,5 +1,6 @@
 package com.researchsystem.backend.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.researchsystem.backend.domain.enums.FinalDecision;
 import jakarta.persistence.*;
 import lombok.*;
@@ -40,10 +41,16 @@ public class Minute {
     private LocalDateTime createdAt;
 
     // -----------------------------------------------------------------------
-    // Owning side of the one-to-one with Council (FK is on this table)
+    // Topic-scoped minute: each topic has exactly one final minute.
     // -----------------------------------------------------------------------
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "council_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "council_id", nullable = false)
+    @JsonIgnoreProperties({"councilMembers", "topics"})
     private Council council;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "topic_id", nullable = false, unique = true)
+    @JsonIgnoreProperties({"assignedCouncil", "investigator", "managingDepartment", "topicAttachments", "auditLogs", "evaluations"})
+    private Topic topic;
 }

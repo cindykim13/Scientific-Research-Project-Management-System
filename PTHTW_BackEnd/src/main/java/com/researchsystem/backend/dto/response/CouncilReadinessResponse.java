@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 public class CouncilReadinessResponse {
 
     private Long councilId;
+    private Long topicId;
     private boolean ready;
     private int totalNonSecretaries;
     private long submittedCount;

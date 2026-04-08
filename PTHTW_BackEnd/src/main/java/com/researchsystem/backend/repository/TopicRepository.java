@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -47,4 +48,7 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
 
     @EntityGraph(attributePaths = {"investigator", "managingDepartment", "topicAttachments", "auditLogs"})
     Optional<Topic> findById(Long id);
+
+    @Query("SELECT t.titleVn FROM Topic t WHERE t.titleVn IS NOT NULL")
+    List<String> findAllTitleVn();
 }

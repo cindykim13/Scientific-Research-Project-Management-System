@@ -1,5 +1,6 @@
 package com.researchsystem.backend.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -46,6 +47,7 @@ public class Department {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"department"})
     private List<User> users = new ArrayList<>();
 
     @Builder.Default
@@ -55,5 +57,6 @@ public class Department {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"managingDepartment"})
     private List<Topic> topics = new ArrayList<>();
 }

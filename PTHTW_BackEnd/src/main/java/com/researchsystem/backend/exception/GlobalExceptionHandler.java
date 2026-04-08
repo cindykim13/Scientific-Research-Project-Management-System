@@ -2,20 +2,31 @@ package com.researchsystem.backend.exception;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 
 @RestControllerAdvice(basePackages = "com.researchsystem.backend.controller")
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleEntityNotFound(
@@ -83,19 +94,20 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-        public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
-                IllegalArgumentException ex, HttpServletRequest request) {
+    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
+            IllegalArgumentException ex, HttpServletRequest request) {
 
         ApiErrorResponse body = ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
-                .status(HttpStatus.BAD_REQUEST.value()) // Nên dùng 400 Bad Request thay vì 500
+                .status(HttpStatus.BAD_REQUEST.value())
                 .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message("Dữ liệu không hợp lệ: " + ex.getMessage()) // Sẽ hiển thị thông báo lỗi BCrypt ra ngoài
+                .message("Dữ liệu không hợp lệ: " + ex.getMessage())
                 .path(request.getRequestURI())
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
-        }
+    }
+
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiErrorResponse> handleBadCredentials(
             BadCredentialsException ex, HttpServletRequest request) {
@@ -125,9 +137,144 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex, HttpServletRequest request) {
+
+        ApiErrorResponse body = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message("Dữ liệu đầu vào không đúng định dạng.")
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex, HttpServletRequest request) {
+
+        String msg = ex.getMessage();
+        if (msg == null || msg.isBlank()) {
+            msg = "Vi phạm ràng buộc dữ liệu.";
+        }
+
+        ApiErrorResponse body = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.CONFLICT.value())
+                .error(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(msg)
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+
+        ApiErrorResponse body = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message("Dữ liệu đầu vào không đúng kiểu.")
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    // [BỔ SUNG] Hàm xử lý ngoại lệ khi thiếu Query Parameter trên URL
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingParams(
+            MissingServletRequestParameterException ex, HttpServletRequest request) {
+        
+        ApiErrorResponse body = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message("Thiếu tham số bắt buộc trên URL: " + ex.getParameterName())
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(InvalidDataAccessApiUsageException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidDataAccessApiUsage(
+            InvalidDataAccessApiUsageException ex, HttpServletRequest request) {
+
+        log.warn("InvalidDataAccessApiUsage on {} {} — {}",
+                request.getMethod(), request.getRequestURI(), ex.getMessage());
+
+        String root = ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : null;
+        String message = (root != null && !root.isBlank())
+                ? root
+                : (ex.getMessage() != null && !ex.getMessage().isBlank()
+                        ? ex.getMessage()
+                        : "Lỗi truy cập hoặc truy vấn dữ liệu không hợp lệ.");
+
+        ApiErrorResponse body = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(message)
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatusException(
+            ResponseStatusException ex, HttpServletRequest request) {
+
+        int status = ex.getStatusCode().value();
+        String reasonPhrase = ex.getStatusCode().toString();
+        String msg = ex.getReason();
+
+        ApiErrorResponse body = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(status)
+                .error(reasonPhrase)
+                .message(msg != null && !msg.isBlank() ? msg : reasonPhrase)
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(status).body(body);
+    }
+
+    @ExceptionHandler(HttpMessageNotWritableException.class)
+    public ResponseEntity<ApiErrorResponse> handleHttpMessageNotWritable(
+            HttpMessageNotWritableException ex, HttpServletRequest request) {
+
+        log.error(">>> JSON SERIALIZATION FAILURE on {} {} — Root cause: {}",
+                request.getMethod(), request.getRequestURI(), ex.getMostSpecificCause().getMessage(), ex);
+
+        ApiErrorResponse body = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
+                .error(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
+                .message("Lỗi tuần tự hóa dữ liệu phản hồi. Vui lòng liên hệ Quản trị viên.")
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGeneral(
             Exception ex, HttpServletRequest request) {
+
+        log.error(">>> UNHANDLED EXCEPTION on {} {} — Type: {} — Message: {}",
+                request.getMethod(), request.getRequestURI(),
+                ex.getClass().getName(), ex.getMessage(), ex);
 
         ApiErrorResponse body = ApiErrorResponse.builder()
                 .timestamp(LocalDateTime.now())

@@ -35,9 +35,9 @@ public class MinuteController {
     @PostMapping
     @PreAuthorize("hasRole('COUNCIL')")
     @Operation(
-            summary = "Submit the final meeting minute for a council",
-            description = "Only the user assigned the SECRETARY role on that council may submit or update minutes. " +
-                          "All non-secretary members must have submitted evaluations first. " +
+            summary = "Submit the final meeting minute for a topic",
+            description = "Only the user assigned the SECRETARY role on the topic's council may submit or update minutes. " +
+                          "All non-secretary members must have submitted evaluations for that same topic first. " +
                           "The average score is computed from SUBMITTED evaluations."
     )
     @ApiResponses({

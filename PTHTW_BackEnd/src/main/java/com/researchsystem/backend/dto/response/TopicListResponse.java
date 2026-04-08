@@ -14,9 +14,10 @@ import java.math.BigDecimal;
 @Builder
 public class TopicListResponse {
 
-    private Long id;
+    private Long topicId;
     private String topicCode;
     private String titleVn;
+    private String titleEn;
     private TopicStatus topicStatus;
     private BigDecimal expectedBudget;
     private String investigatorFullName;

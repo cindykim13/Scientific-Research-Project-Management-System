@@ -71,12 +71,12 @@ public interface CouncilService {
      * @param councilId ID of the council to inspect
      * @return readiness summary including counts and the ready flag
      */
-    CouncilReadinessResponse getEvaluationStatus(Long councilId);
+    CouncilReadinessResponse getEvaluationStatus(Long councilId, Long topicId);
 
     /**
      * Low-level readiness check returning a simple boolean.
      *
      * @return {@code true} if every non-secretary member has exactly one SUBMITTED evaluation
      */
-    boolean checkCouncilReadiness(Long councilId);
+    boolean checkCouncilReadiness(Long councilId, Long topicId);
 }

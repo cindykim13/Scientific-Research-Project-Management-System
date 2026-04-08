@@ -2,14 +2,17 @@ package com.researchsystem.backend.service.impl;
 
 import com.researchsystem.backend.domain.entity.CouncilMember;
 import com.researchsystem.backend.domain.entity.Evaluation;
+import com.researchsystem.backend.domain.entity.Topic;
 import com.researchsystem.backend.domain.enums.SubmissionStatus;
 import com.researchsystem.backend.dto.request.EvaluationRequest;
 import com.researchsystem.backend.dto.response.EvaluationResponse;
 import com.researchsystem.backend.repository.CouncilMemberRepository;
 import com.researchsystem.backend.repository.EvaluationRepository;
+import com.researchsystem.backend.repository.TopicRepository;
 import com.researchsystem.backend.service.EvaluationService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +26,7 @@ public class EvaluationServiceImpl implements EvaluationService {
 
     private final EvaluationRepository evaluationRepository;
     private final CouncilMemberRepository councilMemberRepository;
+    private final TopicRepository topicRepository;
 
     @Override
     public EvaluationResponse submitEvaluation(EvaluationRequest request, String actorEmail) {
@@ -30,8 +34,22 @@ public class EvaluationServiceImpl implements EvaluationService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Council member not found with id: " + request.getCouncilMemberId()));
 
+        Topic topic = topicRepository.findById(request.getTopicId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Topic not found with id: " + request.getTopicId()));
+
+        if (topic.getAssignedCouncil() == null) {
+            throw new IllegalStateException("Topic is not assigned to a council yet");
+        }
+        if (!topic.getAssignedCouncil().getCouncilId().equals(member.getCouncil().getCouncilId())) {
+            throw new IllegalStateException("Council member does not belong to the topic's assigned council");
+        }
+        if (!member.getUser().getEmail().equalsIgnoreCase(actorEmail)) {
+            throw new AccessDeniedException("Authenticated user cannot submit on behalf of another council member");
+        }
+
         Optional<Evaluation> existing = evaluationRepository
-                .findByCouncilMemberCouncilMemberId(member.getCouncilMemberId());
+                .findByTopicTopicIdAndCouncilMemberCouncilMemberId(topic.getTopicId(), member.getCouncilMemberId());
 
         if (existing.isPresent() && existing.get().getSubmissionStatus() == SubmissionStatus.SUBMITTED) {
             throw new IllegalStateException(
@@ -47,6 +65,7 @@ public class EvaluationServiceImpl implements EvaluationService {
                 .add(request.getScoreProducts());
 
         Evaluation evaluation = existing.map(e -> {
+            e.setTopic(topic);
             e.setScoreUrgency(request.getScoreUrgency());
             e.setScoreContent(request.getScoreContent());
             e.setScoreObjectives(request.getScoreObjectives());
@@ -61,6 +80,7 @@ public class EvaluationServiceImpl implements EvaluationService {
             return e;
         }).orElseGet(() -> Evaluation.builder()
                 .councilMember(member)
+                .topic(topic)
                 .scoreUrgency(request.getScoreUrgency())
                 .scoreContent(request.getScoreContent())
                 .scoreObjectives(request.getScoreObjectives())
@@ -82,6 +102,7 @@ public class EvaluationServiceImpl implements EvaluationService {
         return EvaluationResponse.builder()
                 .evaluationId(eval.getEvaluationId())
                 .councilMemberId(eval.getCouncilMember().getCouncilMemberId())
+                .topicId(eval.getTopic().getTopicId())
                 .evaluatorFullName(eval.getCouncilMember().getUser().getFullName())
                 .scoreUrgency(eval.getScoreUrgency())
                 .scoreContent(eval.getScoreContent())

@@ -19,6 +19,9 @@ public class EvaluationRequest {
     @NotNull(message = "Council member ID must not be null")
     private Long councilMemberId;
 
+    @NotNull(message = "Topic ID must not be null")
+    private Long topicId;
+
     @NotNull(message = "Score for urgency must not be null")
     @DecimalMin(value = "0.00", message = "Score must be at least 0.00")
     @DecimalMax(value = "10.00", message = "Score must not exceed 10.00")

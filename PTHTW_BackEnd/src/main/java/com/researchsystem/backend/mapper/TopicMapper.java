@@ -14,19 +14,20 @@ import com.researchsystem.backend.dto.response.TopicListResponse;
         uses = {AuditLogMapper.class})
 public interface TopicMapper {
 
-    @Mapping(target = "id", source = "topicId")
     @Mapping(target = "investigatorFullName", source = "investigator.fullName")
     @Mapping(target = "managingDepartmentName", source = "managingDepartment.departmentName")
+    @Mapping(target = "titleEn", source = "titleEn")
     TopicListResponse toListResponse(Topic topic);
 
-    @Mapping(target = "id", source = "topicId")
     @Mapping(target = "investigatorFullName", source = "investigator.fullName")
     @Mapping(target = "managingDepartmentName", source = "managingDepartment.departmentName")
+    @Mapping(target = "titleEn", source = "titleEn")
     TopicDetailResponse toDetailResponse(Topic topic);
 
     @Mapping(target = "topicId", ignore = true)
     @Mapping(target = "topicStatus", ignore = true)
     @Mapping(target = "fileVersion", ignore = true)
+    @Mapping(target = "titleEn", source = "titleEn")
     @Mapping(target = "submissionDate", ignore = true)
     @Mapping(target = "investigator", ignore = true)
     @Mapping(target = "managingDepartment", ignore = true)

@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 public class MinuteResponse {
 
     private Long minuteId;
+    private Long topicId;
     private Long councilId;
     private String councilName;
     private BigDecimal averageScore;

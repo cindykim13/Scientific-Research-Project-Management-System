@@ -13,8 +13,8 @@ import lombok.NoArgsConstructor;
 @Builder
 public class MinuteRequest {
 
-    @NotNull(message = "Council ID must not be null")
-    private Long councilId;
+    @NotNull(message = "Topic ID must not be null")
+    private Long topicId;
 
     private String synthesizedComments;
 

@@ -1,5 +1,6 @@
 package com.researchsystem.backend.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.researchsystem.backend.domain.enums.SubmissionStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -64,5 +65,11 @@ public class Evaluation {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "council_member_id", nullable = false)
+    @JsonIgnoreProperties({"evaluations", "council", "user"})
     private CouncilMember councilMember;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "topic_id", nullable = false)
+    @JsonIgnoreProperties({"topicAttachments", "auditLogs", "assignedCouncil", "investigator", "managingDepartment"})
+    private Topic topic;
 }

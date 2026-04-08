@@ -1,5 +1,6 @@
 package com.researchsystem.backend.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.researchsystem.backend.domain.enums.ResearchType;
 import com.researchsystem.backend.domain.enums.TopicStatus;
 import jakarta.persistence.*;
@@ -64,14 +65,17 @@ public class Topic {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "investigator_id", nullable = false)
+    @JsonIgnoreProperties({"topics", "councilMembers", "auditLogs", "passwordHash", "department"})
     private User investigator;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "managing_department_id", nullable = false)
+    @JsonIgnoreProperties({"users", "topics"})
     private Department managingDepartment;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_council_id", nullable = true)
+    @JsonIgnoreProperties({"topics", "councilMembers"})
     private Council assignedCouncil;
 
     // -----------------------------------------------------------------------
@@ -85,6 +89,7 @@ public class Topic {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"topic"})
     private List<TopicAttachment> topicAttachments = new ArrayList<>();
 
     @Builder.Default
@@ -94,5 +99,16 @@ public class Topic {
             cascade = CascadeType.ALL,
             orphanRemoval = true
     )
+    @JsonIgnoreProperties({"topic"})
     private List<AuditLog> auditLogs = new ArrayList<>();
+
+    @Builder.Default
+    @OneToMany(
+            mappedBy = "topic",
+            fetch = FetchType.LAZY,
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    @JsonIgnoreProperties({"topic", "councilMember"})
+    private List<Evaluation> evaluations = new ArrayList<>();
 }

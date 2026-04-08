@@ -113,9 +113,13 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserResponse updateUserStatus(Long id, UpdateUserStatusRequest request) {
+    public UserResponse updateUserStatus(Long id, UpdateUserStatusRequest request, String actorEmail) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + id));
+
+        if (user.getEmail().equals(actorEmail)) {
+            throw new org.springframework.security.access.AccessDeniedException("System explicitly denies self-termination operations.");
+        }
 
         user.setActive(request.getActive());
         User saved = userRepository.save(user);

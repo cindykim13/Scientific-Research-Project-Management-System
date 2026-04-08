@@ -6,5 +6,7 @@ public enum CouncilRole {
     /** Thư ký hội đồng */
     SECRETARY,
     /** Thành viên phản biện */
+    REVIEWER,
+    /** Ủy viên hội đồng */
     MEMBER
 }

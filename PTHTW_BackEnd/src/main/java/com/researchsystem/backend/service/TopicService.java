@@ -72,7 +72,7 @@ public interface TopicService {
     /**
      * Returns the full audit trail for a topic in chronological order.
      */
-    List<AuditLogResponse> getAuditLogs(Long topicId);
+    List<AuditLogResponse> getAuditLogs(Long topicId, String actorEmail);
 
     /**
      * Calculates and returns the average {@code totalScore} across all SUBMITTED

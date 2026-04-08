@@ -28,12 +28,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Set;
+
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 @SecurityRequirement(name = "Bearer Authentication")
 @Tag(name = "User Management", description = "Account creation and user status administration")
 public class UserController {
+
+    private static final Set<String> ALLOWED_SORT_FIELDS =
+            Set.of("userId", "email", "fullName", "systemRole", "active");
 
     private final UserService userService;
 
@@ -98,6 +103,11 @@ public class UserController {
     })
     public ResponseEntity<Page<UserResponse>> getAllUsers(
             @ParameterObject @PageableDefault(size = 20, sort = "userId") Pageable pageable) {
+        pageable.getSort().forEach(order -> {
+            if (!ALLOWED_SORT_FIELDS.contains(order.getProperty())) {
+                throw new IllegalArgumentException("Invalid sort field: " + order.getProperty());
+            }
+        });
         return ResponseEntity.ok(userService.getAllUsers(pageable));
     }
 
@@ -115,7 +125,8 @@ public class UserController {
     })
     public ResponseEntity<UserResponse> updateUserStatus(
             @PathVariable("id") Long id,
-            @Valid @RequestBody UpdateUserStatusRequest request) {
-        return ResponseEntity.ok(userService.updateUserStatus(id, request));
+            @Valid @RequestBody UpdateUserStatusRequest request,
+            java.security.Principal principal) {
+        return ResponseEntity.ok(userService.updateUserStatus(id, request, principal.getName()));
     }
 }
