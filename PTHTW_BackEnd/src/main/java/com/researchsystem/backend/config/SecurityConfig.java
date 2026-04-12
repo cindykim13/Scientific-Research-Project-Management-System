@@ -32,6 +32,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final AppCorsProperties appCorsProperties;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -46,10 +47,16 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        List<String> origins = appCorsProperties.allowedOriginsList();
+        if (origins.isEmpty()) {
+            throw new IllegalStateException(
+                    "app.cors.allowed-origins is empty. Set the CORS_ALLOWED_ORIGINS environment variable "
+                            + "(comma-separated origins) or app.cors.allowed-origins in configuration.");
+        }
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

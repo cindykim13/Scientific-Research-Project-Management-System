@@ -42,6 +42,39 @@ public class Topic {
     @Column(name = "research_field", nullable = false, length = 100)
     private String researchField;
 
+    @Column(name = "urgency_statement", columnDefinition = "LONGTEXT")
+    private String urgencyStatement;
+
+    @Column(name = "general_objective", columnDefinition = "LONGTEXT")
+    private String generalObjective;
+
+    @Column(name = "specific_objectives", columnDefinition = "LONGTEXT")
+    private String specificObjectives;
+
+    @Column(name = "research_approach", columnDefinition = "LONGTEXT")
+    private String researchApproach;
+
+    @Column(name = "research_methods", columnDefinition = "LONGTEXT")
+    private String researchMethods;
+
+    @Column(name = "research_scope", columnDefinition = "LONGTEXT")
+    private String researchScope;
+
+    @Column(name = "expected_products_type1", columnDefinition = "LONGTEXT")
+    private String expectedProductsType1;
+
+    @Column(name = "expected_products_type2", columnDefinition = "LONGTEXT")
+    private String expectedProductsType2;
+
+    @Column(name = "budget_explanation", columnDefinition = "LONGTEXT")
+    private String budgetExplanation;
+
+    @Column(name = "training_plan", columnDefinition = "LONGTEXT")
+    private String trainingPlan;
+
+    @Column(name = "implementation_plan", columnDefinition = "LONGTEXT")
+    private String implementationPlan;
+
     @Column(name = "duration_months", nullable = false)
     private int durationMonths;
 

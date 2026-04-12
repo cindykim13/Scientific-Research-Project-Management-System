@@ -22,10 +22,25 @@ public class UpdateTopicRequest {
     @Size(max = 255)
     private String titleVn;
 
+    @Size(max = 255)
+    private String titleEn;
+
     private ResearchType researchType;
 
     @Size(max = 100)
     private String researchField;
+
+    private String urgencyStatement;
+    private String generalObjective;
+    private String specificObjectives;
+    private String researchApproach;
+    private String researchMethods;
+    private String researchScope;
+    private String expectedProductsType1;
+    private String expectedProductsType2;
+    private String budgetExplanation;
+    private String trainingPlan;
+    private String implementationPlan;
 
     @Min(value = 1, message = "Duration must be at least 1 month")
     @Max(value = 60, message = "Duration must not exceed 60 months")

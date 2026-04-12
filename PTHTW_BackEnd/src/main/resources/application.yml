@@ -2,6 +2,11 @@ spring:
   application:
     name: backend
 
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+
   # ===================================================================
   # 1. DATABASE CONNECTION CONFIGURATION
   # ===================================================================
@@ -17,7 +22,16 @@ spring:
       max-lifetime: 1800000
 
   # ===================================================================
-  # 2. JPA / HIBERNATE CONFIGURATION
+  # 2. MULTIPART FILE UPLOAD CONFIGURATION
+  # ===================================================================
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 15MB
+      max-request-size: 20MB
+
+  # ===================================================================
+  # 3. JPA / HIBERNATE CONFIGURATION
   # ===================================================================
   jpa:
     open-in-view: false
@@ -29,7 +43,7 @@ spring:
         format_sql: true
 
   # ===================================================================
-  # 3. FLYWAY MIGRATION CONFIGURATION
+  # 4. FLYWAY MIGRATION CONFIGURATION
   # ===================================================================
   flyway:
     enabled: true
@@ -38,9 +52,22 @@ spring:
     locations: classpath:db/migration
 
 # ===================================================================
-# 4. APPLICATION-SPECIFIC PROPERTIES
+# HTTP: response compression (Tomcat gzip for selected MIME types)
+# ===================================================================
+server:
+  compression:
+    enabled: true
+    mime-types: application/json,text/css,application/javascript
+    min-response-size: 1024
+
+# ===================================================================
+# 5. APPLICATION-SPECIFIC PROPERTIES
 # ===================================================================
 app:
+  # CORS: comma-separated browser origins. Override via CORS_ALLOWED_ORIGINS (twelve-factor).
+  # Default supports local Vite/React dev servers and same-host Swagger UI when the env var is unset.
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000,http://localhost:8080}
   jwt:
     # Bắt buộc sử dụng chuỗi mã hóa chuẩn BASE64 (Dưới đây là chuỗi an toàn 512-bit)
     secret: V1hVbURGOWV3N2pGNTZzSzh4MnpCNnE4M3Y1YjlBMEQzRjdIMUwyTTROOFA5UVEyVjRZNlg3WjhBMUMyRTNGNA==
@@ -66,7 +93,7 @@ management:
         enabled: true
 
 # ===================================================================
-# 5. SPRINGDOC CONFIGURATION
+# 7. SPRINGDOC CONFIGURATION
 # ===================================================================
 springdoc:
   api-docs:

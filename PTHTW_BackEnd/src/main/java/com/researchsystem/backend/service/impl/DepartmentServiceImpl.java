@@ -16,8 +16,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -29,11 +27,8 @@ public class DepartmentServiceImpl implements DepartmentService {
     private final TopicMapper topicMapper;
 
     @Override
-    public List<DepartmentResponse> getAllDepartments() {
-        return departmentRepository.findAll()
-                .stream()
-                .map(this::toDepartmentResponse)
-                .toList();
+    public Page<DepartmentResponse> getAllDepartments(Pageable pageable) {
+        return departmentRepository.findAll(pageable).map(this::toDepartmentResponse);
     }
 
     @Override

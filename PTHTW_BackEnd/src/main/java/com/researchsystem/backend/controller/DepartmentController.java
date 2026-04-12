@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/departments")
@@ -34,17 +33,18 @@ public class DepartmentController {
 
     @GetMapping("/")
     @Operation(
-            summary = "Get master data list of all departments",
-            description = "Returns the complete list of departments available in the system. " +
+            summary = "Get master data list of departments (paginated)",
+            description = "Returns a page of departments. " +
                           "Accessible by all authenticated users (used for dropdown population, etc.)."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Department list returned successfully"),
+            @ApiResponse(responseCode = "200", description = "Department page returned successfully"),
             @ApiResponse(responseCode = "400", description = "Bad Request"),
             @ApiResponse(responseCode = "403", description = "Forbidden — authentication required")
     })
-    public ResponseEntity<List<DepartmentResponse>> getAllDepartments() {
-        return ResponseEntity.ok(departmentService.getAllDepartments());
+    public ResponseEntity<Page<DepartmentResponse>> getAllDepartments(
+            @ParameterObject @PageableDefault(size = 20, sort = "departmentName") Pageable pageable) {
+        return ResponseEntity.ok(departmentService.getAllDepartments(pageable));
     }
 
     @GetMapping("/me/topics")

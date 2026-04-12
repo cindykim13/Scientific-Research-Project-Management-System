@@ -43,11 +43,13 @@ public interface TopicService {
     Page<TopicListResponse> getAllTopics(Pageable pageable);
 
     /**
-     * Returns the full detail view of a single topic.
+     * Returns the full detail view of a single topic after enforcing a zero-trust
+     * ownership matrix on the authenticated actor.
      *
-     * @throws jakarta.persistence.EntityNotFoundException if the topic does not exist
+     * @throws jakarta.persistence.EntityNotFoundException if the topic or actor user does not exist
+     * @throws org.springframework.security.access.AccessDeniedException if the actor may not read the topic
      */
-    TopicDetailResponse getTopicById(Long id);
+    TopicDetailResponse getTopicById(Long id, String actorEmail);
 
     /**
      * Permanently deletes a topic. Only permitted when the topic is in DRAFT status.

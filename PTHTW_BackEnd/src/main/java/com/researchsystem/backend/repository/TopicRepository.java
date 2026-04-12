@@ -46,7 +46,14 @@ public interface TopicRepository extends JpaRepository<Topic, Long> {
 
     long countByTopicStatus(TopicStatus topicStatus);
 
-    @EntityGraph(attributePaths = {"investigator", "managingDepartment", "topicAttachments", "auditLogs"})
+    @EntityGraph(
+            attributePaths = {
+                    "investigator",
+                    "managingDepartment",
+                    "assignedCouncil",
+                    "topicAttachments",
+                    "auditLogs"
+            })
     Optional<Topic> findById(Long id);
 
     @Query("SELECT t.titleVn FROM Topic t WHERE t.titleVn IS NOT NULL")

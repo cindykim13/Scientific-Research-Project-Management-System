@@ -43,7 +43,9 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.dao.DataIntegrityViolationException;
 import com.researchsystem.backend.util.LevenshteinSimilarity;
 import com.researchsystem.backend.util.AttachmentUploadWhitelist;
+import com.researchsystem.backend.util.AttachmentUploadWhitelist.ValidatedBinaryPayload;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -131,14 +133,19 @@ public class TopicServiceImpl implements TopicService {
 
     /**
      * Prevents semantic lexical duplication: if the incoming title overlaps
-     * too strongly (> 0.50 similarity) with any existing persisted topic title,
+     * too strongly (> 0.85 similarity) with any existing persisted topic title,
      * the transaction is aborted with HTTP 409 (DataIntegrityViolationException).
+     *
+     * Threshold rationale: academic research titles in Vietnamese frequently share
+     * domain-specific vocabulary (e.g., "nghien cuu", "phan tich", "ung dung").
+     * A 0.50 threshold produces excessive false positives. The 0.85 threshold
+     * targets near-identical titles while permitting legitimate thematic overlap.
      */
     private void enforceSemanticLexicalDuplication(String incomingTitleVn) {
         // Defensive: controller/validation should prevent null/blank, but keep safe.
         String safeIncoming = incomingTitleVn == null ? "" : incomingTitleVn;
 
-        double threshold = 0.50d;
+        double threshold = 0.85d;
         List<String> existingTitles = topicRepository.findAllTitleVn();
 
         for (String existing : existingTitles) {
@@ -204,9 +211,17 @@ public class TopicServiceImpl implements TopicService {
 
     @Override
     @Transactional(readOnly = true)
-    public TopicDetailResponse getTopicById(Long id) {
+    public TopicDetailResponse getTopicById(Long id, String actorEmail) {
         Topic topic = topicRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + id));
+
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + actorEmail));
+
+        if (!mayReadTopicViaOwnershipMatrix(actor, topic)) {
+            throw new AccessDeniedException("Not authorized to access this topic.");
+        }
+
         return topicMapper.toDetailResponse(topic);
     }
 
@@ -258,6 +273,42 @@ public class TopicServiceImpl implements TopicService {
         if (request.getExpectedBudget() != null) {
             topic.setExpectedBudget(request.getExpectedBudget());
         }
+        if (request.getTitleEn() != null) {
+            topic.setTitleEn(request.getTitleEn());
+        }
+        if (request.getUrgencyStatement() != null) {
+            topic.setUrgencyStatement(request.getUrgencyStatement());
+        }
+        if (request.getGeneralObjective() != null) {
+            topic.setGeneralObjective(request.getGeneralObjective());
+        }
+        if (request.getSpecificObjectives() != null) {
+            topic.setSpecificObjectives(request.getSpecificObjectives());
+        }
+        if (request.getResearchApproach() != null) {
+            topic.setResearchApproach(request.getResearchApproach());
+        }
+        if (request.getResearchMethods() != null) {
+            topic.setResearchMethods(request.getResearchMethods());
+        }
+        if (request.getResearchScope() != null) {
+            topic.setResearchScope(request.getResearchScope());
+        }
+        if (request.getExpectedProductsType1() != null) {
+            topic.setExpectedProductsType1(request.getExpectedProductsType1());
+        }
+        if (request.getExpectedProductsType2() != null) {
+            topic.setExpectedProductsType2(request.getExpectedProductsType2());
+        }
+        if (request.getBudgetExplanation() != null) {
+            topic.setBudgetExplanation(request.getBudgetExplanation());
+        }
+        if (request.getTrainingPlan() != null) {
+            topic.setTrainingPlan(request.getTrainingPlan());
+        }
+        if (request.getImplementationPlan() != null) {
+            topic.setImplementationPlan(request.getImplementationPlan());
+        }
 
         Topic saved = topicRepository.save(topic);
         return topicMapper.toDetailResponse(saved);
@@ -273,8 +324,9 @@ public class TopicServiceImpl implements TopicService {
             throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this topic");
         }
 
-        // Security: validate allowed attachment types before any disk write.
-        String validatedContentType = AttachmentUploadWhitelist.validateAndNormalizeContentType(file);
+        // Security: extension + Tika magic-byte MIME before any disk write (no client Content-Type trust).
+        ValidatedBinaryPayload validatedPayload = AttachmentUploadWhitelist.validateMultipartBinary(file);
+        String validatedContentType = validatedPayload.normalizedContentType();
 
         String originalFilename = file.getOriginalFilename() != null
                 ? Paths.get(file.getOriginalFilename()).getFileName().toString() : "unknown";
@@ -283,7 +335,7 @@ public class TopicServiceImpl implements TopicService {
 
         try {
             Files.createDirectories(targetPath.getParent());
-            Files.copy(file.getInputStream(), targetPath);
+            Files.copy(new ByteArrayInputStream(validatedPayload.bytes()), targetPath);
         } catch (IOException ex) {
             throw new IllegalStateException("Failed to store file: " + ex.getMessage(), ex);
         }
@@ -410,7 +462,7 @@ public class TopicServiceImpl implements TopicService {
         User actor = userRepository.findByEmail(actorEmail)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + actorEmail));
 
-        if (!mayDownloadAttachment(actor, topic)) {
+        if (!mayReadTopicViaOwnershipMatrix(actor, topic)) {
             throw new AccessDeniedException("Not allowed to download this attachment");
         }
 
@@ -473,7 +525,12 @@ public class TopicServiceImpl implements TopicService {
                 topic.getManagingDepartment().getDepartmentId());
     }
 
-    private boolean mayDownloadAttachment(User actor, Topic topic) {
+    /**
+     * Zero-trust read matrix for topic intellectual property (detail view and attachments).
+     * ADMIN / MANAGER: unrestricted. DEPT_HEAD: managing department match. COUNCIL: council roster
+     * for the topic's assigned council. RESEARCHER: principal investigator only.
+     */
+    private boolean mayReadTopicViaOwnershipMatrix(User actor, Topic topic) {
         if (actor.getSystemRole() == SystemRole.ADMIN || actor.getSystemRole() == SystemRole.MANAGER) {
             return true;
         }

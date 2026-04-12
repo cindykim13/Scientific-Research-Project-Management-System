@@ -197,18 +197,22 @@ public class TopicController {
     // -----------------------------------------------------------------------
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('RESEARCHER','DEPT_HEAD','MANAGER','ADMIN','COUNCIL')")
     @Operation(
             summary = "Get topic details",
-            description = "Returns the full detail view of a topic including research metadata and audit history. " +
-                          "Accessible by all authenticated users."
+            description = "Returns the full detail view of a topic including research metadata. " +
+                          "Access is enforced by role and ownership: ADMIN/MANAGER (full), DEPT_HEAD (same department), " +
+                          "COUNCIL (member of assigned council), RESEARCHER (principal investigator only)."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Topic detail returned successfully"),
             @ApiResponse(responseCode = "400", description = "Bad Request"),
-            @ApiResponse(responseCode = "403", description = "Forbidden — authentication required")
+            @ApiResponse(responseCode = "403", description = "Forbidden — insufficient privilege or wrong ownership context")
     })
-    public ResponseEntity<TopicDetailResponse> getTopicById(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(topicService.getTopicById(id));
+    public ResponseEntity<TopicDetailResponse> getTopicById(
+            @PathVariable("id") Long id,
+            @Parameter(hidden = true) Principal principal) {
+        return ResponseEntity.ok(topicService.getTopicById(id, principal.getName()));
     }
 
     @GetMapping("/{id}/audit-logs")

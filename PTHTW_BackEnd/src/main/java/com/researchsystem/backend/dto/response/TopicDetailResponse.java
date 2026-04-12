@@ -30,6 +30,17 @@ public class TopicDetailResponse {
     // --- Additional scalar fields ---
     private ResearchType researchType;
     private String researchField;
+    private String urgencyStatement;
+    private String generalObjective;
+    private String specificObjectives;
+    private String researchApproach;
+    private String researchMethods;
+    private String researchScope;
+    private String expectedProductsType1;
+    private String expectedProductsType2;
+    private String budgetExplanation;
+    private String trainingPlan;
+    private String implementationPlan;
     private int durationMonths;
     private LocalDateTime submissionDate;
 

@@ -6,8 +6,8 @@ import org.springframework.context.annotation.Configuration;
  * Web MVC configuration.
  *
  * CORS is handled exclusively by Spring Security's CorsFilter, registered via
- * SecurityConfig.corsConfigurationSource(). That bean maps "/**" with
- * allowedOriginPatterns("*"), covering all API and springdoc paths.
+ * SecurityConfig.corsConfigurationSource(). Allowed origins are bound from
+ * {@code app.cors.allowed-origins} (typically {@code CORS_ALLOWED_ORIGINS}).
  *
  * Defining an additional WebMvcConfigurer.addCorsMappings() would create a
  * second, lower-priority CORS pass that conflicts with the security-layer filter

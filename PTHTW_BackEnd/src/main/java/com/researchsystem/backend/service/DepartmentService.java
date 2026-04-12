@@ -5,14 +5,12 @@ import com.researchsystem.backend.dto.response.TopicListResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import java.util.List;
-
 public interface DepartmentService {
 
     /**
-     * Returns the complete master data list of all active departments.
+     * Returns departments as a Spring Data page (bounded queries; no full-table scan in a single response).
      */
-    List<DepartmentResponse> getAllDepartments();
+    Page<DepartmentResponse> getAllDepartments(Pageable pageable);
 
     /**
      * Returns all topics belonging to the department managed by the current DEPT_HEAD user.

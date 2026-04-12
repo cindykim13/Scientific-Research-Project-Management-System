@@ -29,6 +29,7 @@ import com.researchsystem.backend.repository.TopicRepository;
 import com.researchsystem.backend.repository.UserRepository;
 import com.researchsystem.backend.service.AuditLogService;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.security.access.AccessDeniedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -54,6 +55,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -63,7 +65,6 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -94,6 +95,11 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TopicServiceImpl Unit Tests")
 class TopicServiceImplTest {
+
+    /** Minimal PDF bytes recognized by Apache Tika as {@code application/pdf} (upload validation tests). */
+    private static final byte[] MINIMAL_PDF_BYTES = (
+            "%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+    ).getBytes(StandardCharsets.ISO_8859_1);
 
     // -------------------------------------------------------------------------
     // Mocks (injected into the SUT via @InjectMocks constructor injection)
@@ -402,18 +408,55 @@ class TopicServiceImplTest {
     class GetTopicByIdTests {
 
         @Test
-        @DisplayName("Existing ID: returns mapped detail response")
-        void success() {
+        @DisplayName("Existing ID: MANAGER may read; returns mapped detail response")
+        void success_managerRole() {
             // Arrange
+            User manager = new User();
+            manager.setEmail("manager@test.com");
+            manager.setSystemRole(SystemRole.MANAGER);
+
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
+            when(userRepository.findByEmail("manager@test.com")).thenReturn(Optional.of(manager));
             when(topicMapper.toDetailResponse(draftTopic)).thenReturn(detailResponse);
 
             // Act
-            TopicDetailResponse result = topicService.getTopicById(1L);
+            TopicDetailResponse result = topicService.getTopicById(1L, "manager@test.com");
 
             // Assert
             assertNotNull(result);
             verify(topicMapper, times(1)).toDetailResponse(draftTopic);
+        }
+
+        @Test
+        @DisplayName("Existing ID: principal investigator may read own topic")
+        void success_investigatorRole() {
+            User investigator = new User();
+            investigator.setEmail("researcher@test.com");
+            investigator.setSystemRole(SystemRole.RESEARCHER);
+
+            when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
+            when(userRepository.findByEmail("researcher@test.com")).thenReturn(Optional.of(investigator));
+            when(topicMapper.toDetailResponse(draftTopic)).thenReturn(detailResponse);
+
+            TopicDetailResponse result = topicService.getTopicById(1L, "researcher@test.com");
+
+            assertNotNull(result);
+            verify(topicMapper, times(1)).toDetailResponse(draftTopic);
+        }
+
+        @Test
+        @DisplayName("Existing ID: foreign RESEARCHER denied (BOLA guard)")
+        void accessDenied_foreignResearcher() {
+            User foreign = new User();
+            foreign.setEmail("other@test.com");
+            foreign.setSystemRole(SystemRole.RESEARCHER);
+
+            when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
+            when(userRepository.findByEmail("other@test.com")).thenReturn(Optional.of(foreign));
+
+            assertThrows(AccessDeniedException.class,
+                    () -> topicService.getTopicById(1L, "other@test.com"));
+            verify(topicMapper, never()).toDetailResponse(any(Topic.class));
         }
 
         @Test
@@ -423,7 +466,7 @@ class TopicServiceImplTest {
             when(topicRepository.findById(99L)).thenReturn(Optional.empty());
 
             // Act & Assert
-            assertThrows(EntityNotFoundException.class, () -> topicService.getTopicById(99L));
+            assertThrows(EntityNotFoundException.class, () -> topicService.getTopicById(99L, "manager@test.com"));
         }
     }
 
@@ -630,9 +673,7 @@ class TopicServiceImplTest {
             MultipartFile file = mock(MultipartFile.class);
             when(file.isEmpty()).thenReturn(false);
             when(file.getOriginalFilename()).thenReturn("research.pdf");
-            when(file.getInputStream())
-                    .thenReturn(new ByteArrayInputStream("pdf-content".getBytes()));
-            when(file.getContentType()).thenReturn("application/pdf");
+            when(file.getBytes()).thenReturn(MINIMAL_PDF_BYTES);
 
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
             when(topicRepository.saveAndFlush(any(Topic.class))).thenAnswer(invocation -> {
@@ -656,15 +697,15 @@ class TopicServiceImplTest {
         }
 
         @Test
-        @DisplayName("null contentType: rejected by attachment MIME allowlist (415)")
-        void nullContentType_usesDefaultContentType(@TempDir Path tempDir) throws IOException {
+        @DisplayName("Magic bytes mismatch (.pdf name but plain text payload): rejected (415)")
+        void magicBytesMismatch_rejectedWith415(@TempDir Path tempDir) throws IOException {
             // Arrange
             ReflectionTestUtils.setField(topicService, "uploadDir", tempDir.toString());
 
             MultipartFile file = mock(MultipartFile.class);
             when(file.isEmpty()).thenReturn(false);
             when(file.getOriginalFilename()).thenReturn("research.pdf");
-            when(file.getContentType()).thenReturn(null);
+            when(file.getBytes()).thenReturn("not-a-real-pdf".getBytes(StandardCharsets.UTF_8));
 
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
 
@@ -692,25 +733,22 @@ class TopicServiceImplTest {
         }
 
         @Test
-        @DisplayName("IOException from getInputStream: wraps to IllegalStateException")
-        void ioException_throwsIllegalStateException(@TempDir Path tempDir) throws IOException {
+        @DisplayName("IOException from getBytes: propagates as 400 from whitelist")
+        void ioExceptionOnRead_throwsBadRequest(@TempDir Path tempDir) throws IOException {
             // Arrange
             ReflectionTestUtils.setField(topicService, "uploadDir", tempDir.toString());
 
             MultipartFile file = mock(MultipartFile.class);
             when(file.isEmpty()).thenReturn(false);
             when(file.getOriginalFilename()).thenReturn("test.pdf");
-            when(file.getContentType()).thenReturn("application/pdf");
-            when(file.getInputStream()).thenThrow(new IOException("Simulated disk failure"));
+            when(file.getBytes()).thenThrow(new IOException("Simulated read failure"));
 
             when(topicRepository.findById(1L)).thenReturn(Optional.of(draftTopic));
 
             // Act & Assert
-            IllegalStateException ex = assertThrows(IllegalStateException.class,
+            ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                     () -> topicService.uploadAttachment(1L, file, "researcher@test.com"));
-
-            assertTrue(ex.getMessage().contains("Failed to store file"),
-                    "Exception message must contain the service's prefix text");
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
         }
 
         @Test

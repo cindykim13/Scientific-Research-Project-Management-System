@@ -50,9 +50,10 @@ public class CouncilServiceImpl implements CouncilService {
     @Override
     public void assignCouncilMembers(Long councilId, CouncilAssignmentRequest request) {
 
-        Council council = councilRepository.findById(councilId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Council not found with id: " + councilId));
+        if (!councilRepository.existsById(councilId)) {
+            throw new EntityNotFoundException("Council not found with id: " + councilId);
+        }
+        Council councilRef = councilRepository.getReferenceById(councilId);
 
         List<CouncilAssignmentRequest.ExpertAssignment> assignments = request.getMembers();
         Set<Long> uniqueIds = new HashSet<>();
@@ -93,7 +94,7 @@ public class CouncilServiceImpl implements CouncilService {
             }
         }
 
-        for (Topic topic : council.getTopics()) {
+        for (Topic topic : topicRepository.findByAssignedCouncilCouncilId(councilId, Pageable.unpaged()).getContent()) {
             Long investigatorId = topic.getInvestigator().getUserId();
             for (CouncilAssignmentRequest.ExpertAssignment ea : assignments) {
                 if (Objects.equals(ea.getUserId(), investigatorId)) {
@@ -112,7 +113,7 @@ public class CouncilServiceImpl implements CouncilService {
             }
 
             newMembers.add(CouncilMember.builder()
-                    .council(council)
+                    .council(councilRef)
                     .user(expert)
                     .councilRole(ea.getCouncilRole())
                     .build());
