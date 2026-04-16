@@ -79,3 +79,6 @@ pgdata/
 # ==========================================
 # Các file tài liệu gốc, cấu hình docker sẽ được giữ lại
 !README.md
+
+# Bỏ qua file chứa mật khẩu, tuyệt đối không đẩy lên Git
+.env
