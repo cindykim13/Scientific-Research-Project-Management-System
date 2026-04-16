@@ -3,8 +3,10 @@ package com.researchsystem.backend.service.impl;
 import com.researchsystem.backend.domain.entity.CouncilMember;
 import com.researchsystem.backend.domain.entity.Department;
 import com.researchsystem.backend.domain.entity.Evaluation;
+import com.researchsystem.backend.domain.entity.Notification;
 import com.researchsystem.backend.domain.entity.Topic;
 import com.researchsystem.backend.domain.entity.TopicAttachment;
+import com.researchsystem.backend.domain.entity.TopicMember;
 import com.researchsystem.backend.domain.entity.User;
 import com.researchsystem.backend.domain.enums.CouncilRole;
 import com.researchsystem.backend.domain.enums.SubmissionStatus;
@@ -24,6 +26,7 @@ import com.researchsystem.backend.notification.TopicStatusChangedEvent;
 import com.researchsystem.backend.repository.CouncilMemberRepository;
 import com.researchsystem.backend.repository.DepartmentRepository;
 import com.researchsystem.backend.repository.EvaluationRepository;
+import com.researchsystem.backend.repository.NotificationRepository;
 import com.researchsystem.backend.repository.TopicRepository;
 import com.researchsystem.backend.repository.UserRepository;
 import com.researchsystem.backend.service.AuditLogService;
@@ -33,6 +36,7 @@ import org.springframework.core.io.UrlResource;
 import org.springframework.security.access.AccessDeniedException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
@@ -61,7 +65,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
-
+@Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -76,14 +80,11 @@ public class TopicServiceImpl implements TopicService {
     private final AuditLogMapper auditLogMapper;
     private final CouncilMemberRepository councilMemberRepository;
     private final EvaluationRepository evaluationRepository;
+    private final NotificationRepository notificationRepository;
 
     @Value("${app.upload.dir:uploads/attachments}")
     private String uploadDir;
 
-    /**
-     * Finite-state machine: defines every legal status transition.
-     * Any (current → requested) pair absent from this map is forbidden.
-     */
     private static final Map<TopicStatus, Set<TopicStatus>> VALID_TRANSITIONS;
 
     static {
@@ -93,7 +94,7 @@ public class TopicServiceImpl implements TopicService {
         VALID_TRANSITIONS.put(TopicStatus.PENDING_REVIEW,
                 EnumSet.of(TopicStatus.DEPT_APPROVED, TopicStatus.DEPT_REJECTED));
         VALID_TRANSITIONS.put(TopicStatus.DEPT_APPROVED,
-                EnumSet.of(TopicStatus.PENDING_COUNCIL));
+                EnumSet.of(TopicStatus.PENDING_COUNCIL, TopicStatus.REVISION_REQUIRED));
         VALID_TRANSITIONS.put(TopicStatus.DEPT_REJECTED,
                 EnumSet.of(TopicStatus.DRAFT));
         VALID_TRANSITIONS.put(TopicStatus.PENDING_COUNCIL,
@@ -126,25 +127,25 @@ public class TopicServiceImpl implements TopicService {
         topic.setManagingDepartment(department);
         topic.setFileVersion(1);
 
+        if (request.getMemberNames() != null && !request.getMemberNames().isEmpty()) {
+            for (String name : request.getMemberNames()) {
+                if (name != null && !name.trim().isEmpty()) {
+                    TopicMember tm = TopicMember.builder()
+                            .topic(topic)
+                            .memberName(name.trim())
+                            .build();
+                    topic.getMembers().add(tm);
+                }
+            }
+        }
+
         Topic saved = topicRepository.save(topic);
 
         return topicMapper.toDetailResponse(saved);
     }
 
-    /**
-     * Prevents semantic lexical duplication: if the incoming title overlaps
-     * too strongly (> 0.85 similarity) with any existing persisted topic title,
-     * the transaction is aborted with HTTP 409 (DataIntegrityViolationException).
-     *
-     * Threshold rationale: academic research titles in Vietnamese frequently share
-     * domain-specific vocabulary (e.g., "nghien cuu", "phan tich", "ung dung").
-     * A 0.50 threshold produces excessive false positives. The 0.85 threshold
-     * targets near-identical titles while permitting legitimate thematic overlap.
-     */
     private void enforceSemanticLexicalDuplication(String incomingTitleVn) {
-        // Defensive: controller/validation should prevent null/blank, but keep safe.
         String safeIncoming = incomingTitleVn == null ? "" : incomingTitleVn;
-
         double threshold = 0.85d;
         List<String> existingTitles = topicRepository.findAllTitleVn();
 
@@ -190,6 +191,97 @@ public class TopicServiceImpl implements TopicService {
 
         topic.setTopicStatus(targetStatus);
         Topic saved = topicRepository.save(topic);
+
+        // ==============================================================================
+        // BỔ SUNG LOGIC 1: THÔNG BÁO KHI TRƯỞNG KHOA XỬ LÝ HỒ SƠ (DEPT_APPROVED / DEPT_REJECTED)
+        // ==============================================================================
+        if (actor.getSystemRole() == SystemRole.DEPT_HEAD) {
+            if (targetStatus == TopicStatus.DEPT_APPROVED) {
+                // 1. Thông báo cho chính Trưởng khoa (Lưu vết lịch sử hộp thoại)
+                notificationRepository.save(Notification.builder()
+                        .recipient(actor)
+                        .notificationType("TOPIC_APPROVED_DEPT")
+                        .title("Đã phê duyệt đề tài")
+                        .body("Ngài đã phê duyệt thành công đề tài mã số: " + topic.getTopicCode())
+                        .resourceType("TOPIC")
+                        .resourceId(topicId)
+                        .build());
+
+                // 2. Thông báo cho Chủ nhiệm
+                notificationRepository.save(Notification.builder()
+                        .recipient(topic.getInvestigator())
+                        .notificationType("TOPIC_APPROVED_DEPT")
+                        .title("Đề tài đã được Khoa phê duyệt")
+                        .body("Đề tài " + topic.getTopicCode() + " đã được Khoa thông qua và chuyển lên Phòng QLKH.")
+                        .resourceType("TOPIC")
+                        .resourceId(topicId)
+                        .build());
+            } else if (targetStatus == TopicStatus.DEPT_REJECTED) {
+                // 1. Thông báo cho chính Trưởng khoa
+                notificationRepository.save(Notification.builder()
+                        .recipient(actor)
+                        .notificationType("TOPIC_REJECTED_DEPT")
+                        .title("Đã trả hồ sơ đề tài")
+                        .body("Ngài đã yêu cầu chỉnh sửa đề tài mã số: " + topic.getTopicCode())
+                        .resourceType("TOPIC")
+                        .resourceId(topicId)
+                        .build());
+
+                // 2. Thông báo cho Chủ nhiệm
+                notificationRepository.save(Notification.builder()
+                        .recipient(topic.getInvestigator())
+                        .notificationType("TOPIC_REJECTED_DEPT")
+                        .title("Đề tài cần chỉnh sửa cấp Khoa")
+                        .body("Đề tài " + topic.getTopicCode() + " bị Khoa yêu cầu chỉnh sửa. Lý do: " + request.getFeedbackMessage())
+                        .resourceType("TOPIC")
+                        .resourceId(topicId)
+                        .build());
+            }
+        }
+
+        // ==============================================================================
+        // BỔ SUNG LOGIC 2: THÔNG BÁO KHI PHÒNG QLKH TRẢ HỒ SƠ VỀ (REVISION_REQUIRED)
+        // ==============================================================================
+        if (targetStatus == TopicStatus.REVISION_REQUIRED && actor.getSystemRole() == SystemRole.MANAGER) {
+            // 1. Gửi thông báo cho Chủ nhiệm
+            Notification invNotif = Notification.builder()
+                    .recipient(topic.getInvestigator())
+                    .notificationType("TOPIC_REVISION")
+                    .title("Yêu cầu bổ sung thủ tục đề tài")
+                    .body("Phòng QLKH yêu cầu bổ sung đề tài: " + topic.getTitleVn() + ". Lý do: " + request.getFeedbackMessage())
+                    .resourceType("TOPIC")
+                    .resourceId(topicId)
+                    .build();
+            notificationRepository.save(invNotif);
+
+            log.info("=================================================================");
+            log.info("[SMTP MOCK] Email to Investigator ({}): Đề tài {} cần bổ sung thủ tục.", 
+                    topic.getInvestigator().getEmail(), topic.getTopicCode());
+            log.info("Lý do: {}", request.getFeedbackMessage());
+            log.info("=================================================================");
+
+            // 2. Gửi thông báo cho Phụ trách Khoa liên quan
+            List<User> deptHeads = userRepository.findByDepartmentDepartmentIdAndSystemRole(
+                    topic.getManagingDepartment().getDepartmentId(), SystemRole.DEPT_HEAD);
+            
+            for (User head : deptHeads) {
+                Notification headNotif = Notification.builder()
+                        .recipient(head)
+                        .notificationType("TOPIC_REVISION_DEPT")
+                        .title("Đề tài của Khoa bị trả về")
+                        .body("Đề tài " + topic.getTopicCode() + " bị Phòng QLKH trả về. Lý do: " + request.getFeedbackMessage())
+                        .resourceType("TOPIC")
+                        .resourceId(topicId)
+                        .build();
+                notificationRepository.save(headNotif);
+                
+                log.info("=================================================================");
+                log.info("[SMTP MOCK] Email to Dept Head ({}): Đề tài {} của khoa bị trả về.", 
+                        head.getEmail(), topic.getTopicCode());
+                log.info("=================================================================");
+            }
+        }
+
         eventPublisher.publishEvent(new TopicStatusChangedEvent(topicId, targetStatus, actorEmail));
 
         return topicMapper.toDetailResponse(saved);
@@ -324,7 +416,6 @@ public class TopicServiceImpl implements TopicService {
             throw new org.springframework.security.access.AccessDeniedException("User is not the owner of this topic");
         }
 
-        // Security: extension + Tika magic-byte MIME before any disk write (no client Content-Type trust).
         ValidatedBinaryPayload validatedPayload = AttachmentUploadWhitelist.validateMultipartBinary(file);
         String validatedContentType = validatedPayload.normalizedContentType();
 
@@ -374,10 +465,6 @@ public class TopicServiceImpl implements TopicService {
         User actor = userRepository.findByEmail(actorEmail)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + actorEmail));
 
-        // Zero-Trust Ownership Matrix:
-        // ADMIN / MANAGER → unconditional access
-        // RESEARCHER      → MUST be the exact investigator of this topic
-        // All others      → denied
         if (actor.getSystemRole() != SystemRole.ADMIN
                 && actor.getSystemRole() != SystemRole.MANAGER) {
             if (actor.getSystemRole() != SystemRole.RESEARCHER
@@ -492,9 +579,12 @@ public class TopicServiceImpl implements TopicService {
         } else if (from == TopicStatus.PENDING_REVIEW
                 && (to == TopicStatus.DEPT_APPROVED || to == TopicStatus.DEPT_REJECTED)) {
             allowed = actor.getSystemRole() == SystemRole.DEPT_HEAD && sameDepartment(actor, topic);
-        } else if (from == TopicStatus.DEPT_APPROVED && to == TopicStatus.PENDING_COUNCIL) {
+        } 
+        else if (from == TopicStatus.DEPT_APPROVED && 
+                (to == TopicStatus.PENDING_COUNCIL || to == TopicStatus.REVISION_REQUIRED)) {
             allowed = actor.getSystemRole() == SystemRole.MANAGER;
-        } else if (from == TopicStatus.DEPT_REJECTED && to == TopicStatus.DRAFT) {
+        } 
+        else if (from == TopicStatus.DEPT_REJECTED && to == TopicStatus.DRAFT) {
             allowed = actor.getSystemRole() == SystemRole.RESEARCHER && investigatorMatches(actor, topic);
         } else if (from == TopicStatus.PENDING_COUNCIL && to == TopicStatus.COUNCIL_REVIEWED) {
             allowed = actor.getSystemRole() == SystemRole.MANAGER;
@@ -527,8 +617,6 @@ public class TopicServiceImpl implements TopicService {
 
     /**
      * Zero-trust read matrix for topic intellectual property (detail view and attachments).
-     * ADMIN / MANAGER: unrestricted. DEPT_HEAD: managing department match. COUNCIL: council roster
-     * for the topic's assigned council. RESEARCHER: principal investigator only.
      */
     private boolean mayReadTopicViaOwnershipMatrix(User actor, Topic topic) {
         if (actor.getSystemRole() == SystemRole.ADMIN || actor.getSystemRole() == SystemRole.MANAGER) {

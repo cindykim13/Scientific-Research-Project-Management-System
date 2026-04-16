@@ -9,6 +9,7 @@ import com.researchsystem.backend.domain.entity.User;
 import com.researchsystem.backend.domain.enums.CouncilRole;
 import com.researchsystem.backend.domain.enums.SubmissionStatus;
 import com.researchsystem.backend.domain.enums.SystemRole;
+import com.researchsystem.backend.domain.enums.TopicStatus; // BỔ SUNG IMPORT
 import com.researchsystem.backend.dto.request.MinuteRequest;
 import com.researchsystem.backend.dto.response.MinuteResponse;
 import com.researchsystem.backend.repository.CouncilMemberRepository;
@@ -116,6 +117,26 @@ public class MinuteServiceImpl implements MinuteService {
         }
 
         Minute saved = minuteRepository.save(minute);
+
+        // [BỔ SUNG LOGIC MÁY TRẠNG THÁI]: Cập nhật TopicStatus dựa trên FinalDecision
+        switch (request.getFinalDecision()) {
+            case APPROVED:
+                // Nếu điểm cao và hoàn hảo, có thể thông qua luôn (Tùy nghiệp vụ, ở đây ta đặt APPROVED)
+                topic.setTopicStatus(TopicStatus.APPROVED);
+                break;
+            case REVISION_REQUIRED:
+                // "Thông qua có chỉnh sửa" hoặc "Xem xét lại" -> Yêu cầu Chủ nhiệm sửa (Chuyển sang Quy trình 4)
+                topic.setTopicStatus(TopicStatus.REVISION_REQUIRED);
+                break;
+            case REJECTED:
+                topic.setTopicStatus(TopicStatus.REJECTED);
+                break;
+            default:
+                topic.setTopicStatus(TopicStatus.COUNCIL_REVIEWED);
+        }
+        topic.setSessionActive(false);
+        topicRepository.save(topic); // Lưu lại trạng thái mới của đề tài
+
         return toMinuteResponse(saved, council, topic);
     }
 
@@ -137,6 +158,11 @@ public class MinuteServiceImpl implements MinuteService {
             if (topic.getInvestigator() == null
                     || !Objects.equals(topic.getInvestigator().getEmail(), actor.getEmail())) {
                 throw new AccessDeniedException("Only the principal investigator may view minutes for this topic");
+            }
+        } else if (actor.getSystemRole() == SystemRole.COUNCIL) {
+            boolean isMember = councilMemberRepository.findByCouncilCouncilIdAndUserEmail(topic.getAssignedCouncil().getCouncilId(), actorEmail).isPresent();
+            if (!isMember) {
+                throw new AccessDeniedException("Only council members assigned to this topic can view its minutes");
             }
         } else {
             throw new AccessDeniedException("Not allowed to view meeting minutes for this topic");

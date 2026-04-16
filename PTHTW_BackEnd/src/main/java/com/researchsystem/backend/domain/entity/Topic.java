@@ -92,8 +92,15 @@ public class Topic {
     @Column(name = "file_version", nullable = false)
     private int fileVersion;
 
+    // ========================================================================
+    // [VÁ LỖ HỔNG NGHIỆP VỤ]: Cờ kiểm soát điều phối phiên họp dành cho Thư ký
+    // ========================================================================
+    @Column(name = "is_session_active", nullable = false)
+    @Builder.Default
+    private boolean isSessionActive = false;
+
     // -----------------------------------------------------------------------
-    // Many-to-one foreign keys
+    // Relationships
     // -----------------------------------------------------------------------
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -111,9 +118,9 @@ public class Topic {
     @JsonIgnoreProperties({"topics", "councilMembers"})
     private Council assignedCouncil;
 
-    // -----------------------------------------------------------------------
-    // Bidirectional relationships
-    // -----------------------------------------------------------------------
+    @Builder.Default
+    @OneToMany(mappedBy = "topic", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<TopicMember> members = new ArrayList<>();
 
     @Builder.Default
     @OneToMany(

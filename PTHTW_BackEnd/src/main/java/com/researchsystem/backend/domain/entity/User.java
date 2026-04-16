@@ -6,6 +6,7 @@ import com.researchsystem.backend.domain.enums.SystemRole;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,6 +47,13 @@ public class User {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean active = true;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Builder.Default
+    private int failedLoginAttempts = 0;
+
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
 
     // -----------------------------------------------------------------------
     // Many-to-one: a user optionally belongs to a department

@@ -54,7 +54,7 @@ public class MinuteController {
     }
 
     @GetMapping("/topic/{topicId}")
-    @PreAuthorize("hasAnyRole('RESEARCHER','MANAGER','ADMIN')")
+    @PreAuthorize("hasAnyRole('RESEARCHER','MANAGER','ADMIN','COUNCIL')")
     @Operation(
             summary = "Get meeting minutes for a topic",
             description = "Principal investigators may read minutes for their own topics once a council is assigned. " +

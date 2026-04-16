@@ -216,12 +216,20 @@ export default function TopicRevisionFormPage() {
         await topicsApi.uploadAttachment(topicId, newFile);
       }
 
+      // [BỔ SUNG LOGIC FSM]: Sau khi cập nhật nội dung, hệ thống phải tự động kích hoạt chuyển trạng thái để nộp lại.
+      // Dựa trên FSM Backend, trạng thái REVISION_REQUIRED chuyển sang PENDING_REVIEW.
+      await topicsApi.changeStatus(topicId, {
+          targetStatus: 'PENDING_REVIEW', // Gửi lại vào luồng xét duyệt
+          feedbackMessage: 'Chủ nhiệm đã nộp lại bản giải trình và cập nhật hồ sơ theo yêu cầu.'
+      });
+
       setConfirmOpen(false);
-      addToast({ type: 'success', message: 'Hồ sơ đề tài đã được cập nhật thành công.' });
-      navigate(`/researcher/topics/${topicId}`);
+      addToast({ type: 'success', message: 'Hồ sơ đề tài đã được nộp lại thành công. Chờ xét duyệt.' });
+      navigate(`/researcher/dashboard`);
     } catch (err) {
       if (err.response?.status === 400) applyFieldErrors(err, setError);
       setConfirmOpen(false);
+      addToast({ type: 'error', message: 'Lỗi khi nộp lại hồ sơ.' });
     } finally {
       setSubmitting(false);
     }

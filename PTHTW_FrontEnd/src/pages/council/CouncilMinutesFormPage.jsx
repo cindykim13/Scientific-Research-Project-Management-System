@@ -181,10 +181,12 @@ export default function CouncilMinutesFormPage() {
   const [councilDetail, setCouncilDetail] = useState(null);
   const [readiness, setReadiness] = useState(null);
   const [averageScore, setAverageScore] = useState(null);
+  const [topicCouncilRole, setTopicCouncilRole] = useState(null);
   
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [justSubmitted, setJustSubmitted] = useState(false);
   const [tab, setTab] = useState("thuyetminh");
   
   const pollRef = useRef(null);
@@ -209,11 +211,13 @@ export default function CouncilMinutesFormPage() {
         const myTopicsList = await councilsApi.fetchAllMyCouncilTopics();
         const assignment = myTopicsList.find((t) => String(t.topicId) === String(topicId));
 
-        if (!assignment || assignment.councilRole !== 'SECRETARY') {
+        if (!assignment) {
           setForbidden(true);
           setLoading(false);
           return;
         }
+
+        setTopicCouncilRole(assignment.councilRole);
         setCouncilId(assignment.councilId);
 
         const [topicRes] = await Promise.all([topicsApi.getById(topicId)]);
@@ -223,6 +227,21 @@ export default function CouncilMinutesFormPage() {
           const [councilRes] = await Promise.all([councilsApi.getById(assignment.councilId)]);
           setCouncilDetail(councilRes.data);
         }
+
+        try {
+           const minRes = await minutesApi.getByTopicId(topicId);
+           if (minRes.data) {
+              setValue('synthesizedComments', minRes.data.synthesizedComments);
+              setValue('qaExplanations', minRes.data.qaExplanations || '');
+              setValue('finalDecision', minRes.data.finalDecision);
+              setAverageScore(minRes.data.averageScore);
+              setSubmitted(true);
+           }
+        } catch (e) {
+           if (assignment.councilRole !== 'SECRETARY') {
+              setForbidden(true);
+           }
+        }
       } catch {
         setForbidden(true);
       } finally {
@@ -230,7 +249,7 @@ export default function CouncilMinutesFormPage() {
       }
     };
     verify();
-  }, [topicId, userId]);
+  }, [topicId, userId, setValue]);
 
   // ── Polling Readiness ──
   const fetchReadiness = useCallback(async () => {
@@ -253,10 +272,10 @@ export default function CouncilMinutesFormPage() {
   }, [councilId, fetchReadiness]);
 
   useEffect(() => {
-    if (!submitted) return undefined;
+    if (!justSubmitted) return undefined;
     const t = setTimeout(() => navigate('/council/dashboard'), 4000);
     return () => clearTimeout(t);
-  }, [submitted, navigate]);
+  }, [justSubmitted, navigate]);
 
   const handleAutoExtract = () => {
     if (!readiness?.evaluations) return;
@@ -283,6 +302,7 @@ export default function CouncilMinutesFormPage() {
 
       setConfirmOpen(false);
       setSubmitted(true);
+      setJustSubmitted(true);
       addToast({
         type: 'success',
         message: 'Biên bản Hội đồng đã được ghi nhận và công bố thành công!',
@@ -325,6 +345,7 @@ export default function CouncilMinutesFormPage() {
   const pct = averageScore ? Math.round((averageScore / 100) * 100) : 0;
   const minScore = evaluations.length > 0 ? Math.min(...evaluations.map(e => e.totalScore || 0)) : 0;
   const maxScore = evaluations.length > 0 ? Math.max(...evaluations.map(e => e.totalScore || 0)) : 0;
+  const isReadOnly = topicCouncilRole !== 'SECRETARY' || submitted;
 
   return (
     // Replaced h-screen w-screen with AppShell compatible wrapper
@@ -527,14 +548,17 @@ export default function CouncilMinutesFormPage() {
               </div>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <p className="text-[12px] text-gray-500">Tổng hợp ý kiến từ Hội đồng. Bạn có thể trích xuất tự động nội dung phiếu.</p>
+                {!isReadOnly && (
                 <button type="button" onClick={handleAutoExtract} className="inline-flex items-center gap-2 h-8 px-4 rounded-lg border border-[#1a5ea8] text-[#1a5ea8] hover:bg-blue-50 text-xs font-bold transition">
                   <IcSparkle cls="w-3.5 h-3.5" /> Trích xuất tự động ({evaluations.length} phiếu)
                 </button>
+                )}
               </div>
               <div>
                 <textarea
                   {...register('synthesizedComments')}
                   rows={8}
+                  disabled={isReadOnly}
                   placeholder="Nhập nội dung tổng hợp..."
                   aria-invalid={errors.synthesizedComments ? 'true' : 'false'}
                   aria-describedby={errors.synthesizedComments ? 'synthesized-comments-error' : undefined}
@@ -548,7 +572,7 @@ export default function CouncilMinutesFormPage() {
               </div>
               <div>
                 <label className="block text-[12px] font-bold text-gray-600 mb-1.5">Giải trình của chủ nhiệm đề tài / Hỏi đáp (Nếu có)</label>
-                <textarea {...register('qaExplanations')} rows={5} placeholder="Ghi nhận các ý kiến thảo luận thêm..." className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50/40 focus:bg-white focus:border-[#1a5ea8] focus:ring-2 focus:ring-[#1a5ea8]/20 text-[13px] text-gray-800 px-4 py-3 outline-none transition font-mono" />
+                <textarea {...register('qaExplanations')} disabled={isReadOnly} rows={5} placeholder="Ghi nhận các ý kiến thảo luận thêm..." className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50/40 focus:bg-white focus:border-[#1a5ea8] focus:ring-2 focus:ring-[#1a5ea8]/20 text-[13px] text-gray-800 px-4 py-3 outline-none transition font-mono" />
               </div>
             </div>
 
@@ -569,8 +593,8 @@ export default function CouncilMinutesFormPage() {
                 {DECISION_CONFIG.map(opt => {
                   const isSelected = decision === opt.id;
                   return (
-                    <label key={opt.id} className={`flex flex-col items-center text-center gap-3 p-5 rounded-xl border-2 cursor-pointer transition-all duration-200 ${isSelected ? `${opt.accent.border} ${opt.accent.bg} ${opt.accent.ring} shadow-sm` : "border-gray-200 bg-white hover:border-gray-300"}`}>
-                      <input type="radio" {...register('finalDecision')} value={opt.id} className="sr-only" />
+                    <label key={opt.id} className={`flex flex-col items-center text-center gap-3 p-5 rounded-xl border-2 transition-all duration-200 ${isSelected ? `${opt.accent.border} ${opt.accent.bg} ${opt.accent.ring} shadow-sm` : "border-gray-200 bg-white"} ${!isReadOnly ? "cursor-pointer hover:border-gray-300" : "cursor-default"}`}>
+                      <input type="radio" {...register('finalDecision')} disabled={isReadOnly} value={opt.id} className="sr-only" />
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center transition ${isSelected ? opt.accent.iconBg : "bg-gray-100 text-gray-400"}`}>
                         {opt.id === 'APPROVED' ? <IcCheck cls="w-5 h-5"/> : opt.id === 'REVISION_REQUIRED' ? <IcEdit cls="w-5 h-5"/> : <IcX cls="w-5 h-5"/>}
                       </div>
@@ -612,11 +636,13 @@ export default function CouncilMinutesFormPage() {
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               <button disabled={submitting} onClick={() => navigate('/council/dashboard')} className="h-10 px-5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
-                Hủy bỏ
+                {isReadOnly ? "Quay lại" : "Hủy bỏ"}
               </button>
-              <button disabled={!isReady || !canPublish || submitting || !isValid} onClick={() => setConfirmOpen(true)} className={`flex items-center gap-2 h-10 px-6 rounded-lg text-sm font-bold transition ${isReady && canPublish && isValid && !submitting ? "bg-[#1a5ea8] hover:bg-[#15306a] text-white shadow-sm" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
-                <IcPublish cls="w-4 h-4" /> {submitted ? "Đã Công bố" : "Lưu & Công bố Biên bản"}
-              </button>
+              {!isReadOnly && (
+                <button disabled={!isReady || !canPublish || submitting || !isValid} onClick={() => setConfirmOpen(true)} className={`flex items-center gap-2 h-10 px-6 rounded-lg text-sm font-bold transition ${isReady && canPublish && isValid && !submitting ? "bg-[#1a5ea8] hover:bg-[#15306a] text-white shadow-sm" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
+                  <IcPublish cls="w-4 h-4" /> Lưu & Công bố Biên bản
+                </button>
+              )}
             </div>
           </div>
         </div>

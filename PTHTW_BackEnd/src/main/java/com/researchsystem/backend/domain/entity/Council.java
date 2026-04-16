@@ -6,8 +6,8 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "councils")
@@ -38,6 +38,9 @@ public class Council {
     // -----------------------------------------------------------------------
     // Bidirectional relationships
     // -----------------------------------------------------------------------
+    // FIX: Changed List<> to Set<> to resolve MultipleBagFetchException.
+    // Hibernate cannot simultaneously fetch multiple List (bag) collections
+    // via @EntityGraph. Using Set<> makes them bag-safe.
 
     @Builder.Default
     @OneToMany(
@@ -47,7 +50,7 @@ public class Council {
             orphanRemoval = true
     )
     @JsonIgnoreProperties({"council"})
-    private List<CouncilMember> councilMembers = new ArrayList<>();
+    private Set<CouncilMember> councilMembers = new LinkedHashSet<>();
 
     @Builder.Default
     @OneToMany(
@@ -57,7 +60,7 @@ public class Council {
             orphanRemoval = true
     )
     @JsonIgnoreProperties({"assignedCouncil"})
-    private List<Topic> topics = new ArrayList<>();
+    private Set<Topic> topics = new LinkedHashSet<>();
 
     @Builder.Default
     @OneToMany(
@@ -67,5 +70,5 @@ public class Council {
             orphanRemoval = true
     )
     @JsonIgnoreProperties({"council", "topic"})
-    private List<Minute> minutes = new ArrayList<>();
+    private Set<Minute> minutes = new LinkedHashSet<>();
 }

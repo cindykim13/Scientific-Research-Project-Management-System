@@ -1,5 +1,6 @@
 package com.researchsystem.backend.dto.response;
 
+import com.researchsystem.backend.domain.enums.CouncilRole;
 import com.researchsystem.backend.domain.enums.TopicStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,4 +23,12 @@ public class TopicListResponse {
     private BigDecimal expectedBudget;
     private String investigatorFullName;
     private String managingDepartmentName;
+    
+    private String councilName; 
+    private CouncilRole councilRole; 
+    private Long councilId;
+    private Long councilMemberId;
+
+    // [VÁ LỖ HỔNG NGHIỆP VỤ]: Truyền cờ điều phối về cho UI
+    private boolean isSessionActive;
 }

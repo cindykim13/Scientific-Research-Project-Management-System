@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -51,4 +52,7 @@ public class TopicCreationRequest {
 
     @NotNull
     private Long managingDepartmentId;
+
+    // Đổi từ memberIds sang memberNames
+    private List<String> memberNames;
 }

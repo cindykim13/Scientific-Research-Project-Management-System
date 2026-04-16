@@ -12,6 +12,7 @@ import com.researchsystem.backend.dto.request.UpdatePasswordRequest;
 import com.researchsystem.backend.dto.request.UpdateProfileRequest;
 import com.researchsystem.backend.dto.response.AuthResponse;
 import com.researchsystem.backend.dto.response.UserResponse;
+import com.researchsystem.backend.repository.NotificationRepository;
 import com.researchsystem.backend.repository.PasswordResetTokenRepository;
 import com.researchsystem.backend.repository.RefreshTokenRepository;
 import com.researchsystem.backend.repository.UserRepository;
@@ -37,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
 @Slf4j
@@ -52,26 +54,57 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final CustomUserDetailsService customUserDetailsService;
+    private final NotificationRepository notificationRepository;
 
     @Value("${app.jwt.refresh-expiration:604800000}")
     private long refreshExpirationMs;
 
     @Override
     public AuthResponse login(LoginRequest request) {
+        // 1. Kiểm tra tài khoản có bị khóa trước khi xác thực không
+        User userForCheck = userRepository.findByEmail(request.getEmail()).orElse(null);
+        if (userForCheck != null && userForCheck.getLockedUntil() != null) {
+            if (userForCheck.getLockedUntil().isAfter(LocalDateTime.now())) {
+                throw new org.springframework.security.authentication.LockedException(
+                        "Tài khoản đã bị khóa do nhập sai nhiều lần. Vui lòng thử lại sau 15 phút.");
+            } else {
+                // Đã hết thời gian khóa, reset lại
+                userForCheck.setLockedUntil(null);
+                userForCheck.setFailedLoginAttempts(0);
+                userRepository.save(userForCheck);
+            }
+        }
+
         Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
             );
         } catch (org.springframework.security.authentication.BadCredentialsException ex) {
-            throw ex;
+            // 2. Xử lý khi nhập sai mật khẩu
+            if (userForCheck != null) {
+                int attempts = userForCheck.getFailedLoginAttempts() + 1;
+                userForCheck.setFailedLoginAttempts(attempts);
+                if (attempts >= 5) {
+                    userForCheck.setLockedUntil(LocalDateTime.now().plusMinutes(15));
+                }
+                userRepository.save(userForCheck);
+            }
+            throw ex; // Tiếp tục ném ra để GlobalExceptionHandler bắt và trả về 401
         } catch (AuthenticationException ex) {
             throw new BadCredentialsException("Invalid credentials", ex);
         }
 
-        String accessToken = jwtTokenProvider.generateToken(authentication);
+        // 3. Đăng nhập thành công -> Reset số lần sai
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         User user = userDetails.getUser();
+        if (user.getFailedLoginAttempts() > 0) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            userRepository.save(user);
+        }
+
+        String accessToken = jwtTokenProvider.generateToken(authentication);
         String refreshPlain = createRefreshTokenForUser(user);
 
         return toAuthResponse(user, accessToken, refreshPlain);
@@ -92,13 +125,24 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + email));
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
-            throw new IllegalArgumentException("Current password is incorrect");
+            throw new IllegalArgumentException("Mật khẩu hiện tại không chính xác.");
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         user.setFirstLogin(false);
         userRepository.save(user);
         refreshTokenRepository.deleteAllByUser_UserId(user.getUserId());
+
+        // BỔ SUNG LOGIC: Ghi nhận lịch sử thông báo
+        com.researchsystem.backend.domain.entity.Notification notification = com.researchsystem.backend.domain.entity.Notification.builder()
+                .recipient(user)
+                .notificationType("SECURITY_ALERT")
+                .title("Thay đổi mật khẩu thành công")
+                .body("Mật khẩu tài khoản của bạn đã được thay đổi thành công vào lúc " + LocalDateTime.now() + ". Nếu bạn không thực hiện hành động này, vui lòng liên hệ quản trị viên ngay lập tức.")
+                .resourceType("ACCOUNT")
+                .resourceId(user.getUserId())
+                .build();
+        notificationRepository.save(notification);
     }
 
     @Override

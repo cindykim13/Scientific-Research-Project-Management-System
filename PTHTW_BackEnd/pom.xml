@@ -149,6 +149,12 @@
 			<artifactId>tika-core</artifactId>
 			<version>3.1.0</version>
 		</dependency>
+
+		<!-- SMTP Email Dispatching -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
 	</dependencies>
 
 	<build>

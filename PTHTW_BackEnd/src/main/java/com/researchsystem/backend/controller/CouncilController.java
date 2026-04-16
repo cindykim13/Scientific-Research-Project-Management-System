@@ -3,6 +3,7 @@ package com.researchsystem.backend.controller;
 import com.researchsystem.backend.dto.request.AssignTopicsRequest;
 import com.researchsystem.backend.dto.request.CouncilAssignmentRequest;
 import com.researchsystem.backend.dto.request.CouncilCreateRequest;
+import com.researchsystem.backend.dto.request.CouncilCreationWithAssignmentRequest;
 import com.researchsystem.backend.dto.response.CouncilDetailResponse;
 import com.researchsystem.backend.dto.response.CouncilListResponse;
 import com.researchsystem.backend.dto.response.CouncilReadinessResponse;
@@ -43,33 +44,55 @@ public class CouncilController {
 
     private final CouncilService councilService;
 
-    @PostMapping("/")
-    @PreAuthorize("hasRole('MANAGER')")
+    // ============================================================================
+    // GIAO DỊCH PHỨC HỢP: TẠO HỘI ĐỒNG + GÁN THÀNH VIÊN + GIAO ĐỀ TÀI
+    // ============================================================================
+    @PostMapping("/create-and-assign")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @Operation(
+            summary = "Tạo mới hội đồng và phân công thành viên, đề tài trong một giao dịch duy nhất",
+            description = "MANAGER thực hiện tạo hội đồng, gán vai trò và giao đề tài. Đảm bảo tính nguyên tử."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Hội đồng được tạo và phân công thành công"),
+            @ApiResponse(responseCode = "400", description = "Lỗi xác thực dữ liệu gửi lên"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — Yêu cầu quyền MANAGER hoặc ADMIN")
+    })
+    public ResponseEntity<CouncilDetailResponse> createAndAssignCouncil(
+            @Valid @RequestBody CouncilCreationWithAssignmentRequest request,
+            @Parameter(hidden = true) Principal principal) {
+        CouncilDetailResponse response = councilService.createAndAssign(request, principal.getName());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+    // ============================================================================
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @Operation(
             summary = "Create a new evaluation council",
-            description = "MANAGER creates an evaluation council with meeting schedule metadata. " +
+            description = "MANAGER or ADMIN creates an evaluation council with meeting schedule metadata. " +
                           "Members and topics are assigned in subsequent calls."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Council created successfully"),
             @ApiResponse(responseCode = "400", description = "Bad Request — validation error on payload"),
-            @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER role required")
+            @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER or ADMIN role required")
     })
     public ResponseEntity<CouncilDetailResponse> createCouncil(@Valid @RequestBody CouncilCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(councilService.createCouncil(request));
     }
 
-    @GetMapping("/")
-    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @GetMapping
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN', 'COUNCIL')")
     @Operation(
             summary = "List all evaluation councils (paginated)",
             description = "Returns a paginated summary of all councils including member and topic counts. " +
-                          "Accessible by MANAGER and ADMIN."
+                          "Accessible by MANAGER, ADMIN and COUNCIL."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Council list returned successfully"),
             @ApiResponse(responseCode = "400", description = "Bad Request — invalid pagination parameters"),
-            @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER or ADMIN role required")
+            @ApiResponse(responseCode = "403", description = "Forbidden — authentication required")
     })
     public ResponseEntity<Page<CouncilListResponse>> getAllCouncils(
             @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
@@ -81,7 +104,7 @@ public class CouncilController {
     @Operation(
             summary = "Get full details of a council",
             description = "Returns complete council information including all members with roles " +
-                          "and all assigned topics. Accessible by all authenticated users."
+                          "and all assigned topics. Accessible by all authenticated users involved in councils."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Council detail returned successfully"),
@@ -93,7 +116,7 @@ public class CouncilController {
     }
 
     @PostMapping("/{id}/members")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @Operation(
             summary = "Assign expert members to a council with roles",
             description = "MANAGER assigns experts with explicit PRESIDENT, SECRETARY, or MEMBER council roles. " +
@@ -113,7 +136,7 @@ public class CouncilController {
     }
 
     @DeleteMapping("/{id}/members/{userId}")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @Operation(
             summary = "Remove a member from a council",
             description = "MANAGER removes a mistakenly assigned expert from the council roster."
@@ -131,7 +154,7 @@ public class CouncilController {
     }
 
     @DeleteMapping("/{id}/topics/{topicId}")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @Operation(
             summary = "Unassign a topic from a council",
             description = "MANAGER removes a topic from this council and returns it to DEPT_APPROVED status. " +
@@ -151,7 +174,7 @@ public class CouncilController {
     }
 
     @PostMapping("/{id}/topics")
-    @PreAuthorize("hasRole('MANAGER')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
     @Operation(
             summary = "Assign DEPT_APPROVED topics to a council for evaluation",
             description = "MANAGER assigns a batch of department-approved topics to this council. " +
@@ -164,8 +187,9 @@ public class CouncilController {
     })
     public ResponseEntity<Void> assignTopics(
             @PathVariable("id") Long id,
-            @Valid @RequestBody AssignTopicsRequest request) {
-        councilService.assignTopics(id, request);
+            @Valid @RequestBody AssignTopicsRequest request,
+            @Parameter(hidden = true) Principal principal) {
+        councilService.assignTopics(id, request, principal.getName());
         return ResponseEntity.noContent().build();
     }
 
@@ -188,7 +212,7 @@ public class CouncilController {
     }
 
     @GetMapping("/{id}/evaluations/status")
-    @PreAuthorize("hasRole('COUNCIL')")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN', 'COUNCIL')")
     @Operation(
             summary = "Check evaluation readiness status of a council",
             description = "Returns a readiness summary showing how many non-secretary members have " +
@@ -197,11 +221,31 @@ public class CouncilController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Readiness status returned successfully"),
             @ApiResponse(responseCode = "400", description = "Bad Request"),
-            @ApiResponse(responseCode = "403", description = "Forbidden — COUNCIL role required")
+            @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER or COUNCIL role required")
     })
     public ResponseEntity<CouncilReadinessResponse> getEvaluationStatus(
             @PathVariable("id") Long id,
             @RequestParam("topicId") Long topicId) {
         return ResponseEntity.ok(councilService.getEvaluationStatus(id, topicId));
+    }
+
+    @PostMapping("/topics/{topicId}/session/start")
+    @PreAuthorize("hasRole('COUNCIL')")
+    @Operation(
+            summary = "Secretary starts the meeting session for a topic",
+            description = "Only the secretary assigned to the topic's council can activate the session. " +
+                          "Session activation unlocks evaluation submission for non-secretary members."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Session started successfully"),
+            @ApiResponse(responseCode = "400", description = "Bad Request — schedule/quorum guard not satisfied"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — only secretary of assigned council can start"),
+            @ApiResponse(responseCode = "404", description = "Topic not found")
+    })
+    public ResponseEntity<Void> startTopicSession(
+            @PathVariable("topicId") Long topicId,
+            @Parameter(hidden = true) Principal principal) {
+        councilService.startTopicSession(topicId, principal.getName());
+        return ResponseEntity.noContent().build();
     }
 }

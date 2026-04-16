@@ -11,9 +11,10 @@ import { topicsApi } from '../../api/topics.api';
 import { referenceApi } from '../../api/reference.api';
 import { departmentsApi } from '../../api/departments.api';
 import useUiStore from '../../store/uiStore';
+import useAuthStore from '../../store/authStore';
 import { applyFieldErrors } from '../../utils/errorHandler';
 
-const STEPS = ['Thông tin chung', 'Mục tiêu', 'Phương pháp', 'Sản phẩm & Kinh phí', 'Tệp đính kèm'];
+const STEPS = ['Thông tin chung', 'Mục tiêu', 'Phương pháp', 'Sản phẩm & Kinh phí', 'Nhân sự & Tệp đính kèm'];
 
 const RESEARCH_TYPE_LABELS = {
   BASIC: 'Nghiên cứu cơ bản',
@@ -77,8 +78,10 @@ const schemas = [
     expectedBudget: yup.number().typeError('Phải là số').required('Bắt buộc').positive('Phải lớn hơn 0').max(10000000000),
     budgetExplanation: yup.string().nullable(),
   }),
-  // Step 4: Attachments
-  yup.object({}),
+  // Step 4: Personnel & Attachments
+  yup.object({
+    memberNames: yup.array().of(yup.string().max(255)),
+  }),
 ];
 
 const STEP_FIELDS = [
@@ -86,25 +89,25 @@ const STEP_FIELDS = [
   ['urgencyStatement', 'generalObjective', 'specificObjectives'],
   ['researchApproach', 'researchMethods', 'researchScope', 'implementationPlan'],
   ['expectedProductsType1', 'expectedProductsType2', 'trainingPlan', 'expectedBudget', 'budgetExplanation'],
-  [],
+  ['memberNames'],
 ];
 
 export default function TopicSubmissionWizardPage() {
   const navigate = useNavigate();
   const addToast = useUiStore((s) => s.addToast);
+  const userClaims = useAuthStore((s) => s.userClaims);
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState(new Set());
   const [proposalFile, setProposalFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [enums, setEnums] = useState({});
   const [departments, setDepartments] = useState([]);
-
-  const { register, handleSubmit, control, trigger, setError, setValue, watch, formState: { errors } } = useForm({
+  const { register, control, trigger, setError, setValue, watch, formState: { errors } } = useForm({
     resolver: yupResolver(schemas[currentStep]),
     mode: 'onChange',
     defaultValues: {
       titleVn: '', titleEn: '', researchField: '', researchType: '',
-      durationMonths: '', managingDepartmentId: '',
+      durationMonths: '', managingDepartmentId: '', memberNames: [],
       urgencyStatement: '', generalObjective: '', specificObjectives: '',
       researchApproach: '', researchMethods: '', researchScope: '',
       implementationPlan: '',
@@ -151,6 +154,10 @@ export default function TopicSubmissionWizardPage() {
     setIsSubmitting(true);
     try {
       const values = watch();
+      const validMemberNames = values.memberNames
+        ? values.memberNames.filter((name) => name && name.trim() !== '').map((name) => name.trim())
+        : [];
+
       const topicPayload = {
         titleVn: values.titleVn,
         titleEn: values.titleEn,
@@ -170,19 +177,16 @@ export default function TopicSubmissionWizardPage() {
         expectedProductsType2: values.expectedProductsType2 || null,
         trainingPlan: values.trainingPlan || null,
         budgetExplanation: values.budgetExplanation || null,
+        memberNames: validMemberNames,
       };
 
       const createRes = await topicsApi.create(topicPayload);
       const topicId = createRes.data?.topicId;
 
-      // CRITICAL: Await file upload to completion BEFORE any navigation.
-      // Navigating prematurely unmounts this component and aborts the
-      // multipart upload stream, causing a server-side EOFException and
-      // leaving an orphan DRAFT record without its attachment.
       if (proposalFile && topicId) {
         try {
           await topicsApi.uploadAttachment(topicId, proposalFile);
-        } catch (uploadErr) {
+        } catch {
           addToast({
             type: 'warning',
             message: 'Đề tài đã tạo nhưng tải tệp thất bại. Bạn có thể tải lại từ trang chi tiết.',
@@ -205,8 +209,6 @@ export default function TopicSubmissionWizardPage() {
           }
         }
       } else if (err.response?.status === 409) {
-        // Semantic duplication conflict: preserve form state, show inline toast.
-        // Do NOT let the global interceptor navigate away.
         addToast({
           type: 'error',
           message: err.response?.data?.message ?? 'Tên đề tài trùng lặp với đề tài đã tồn tại. Vui lòng chỉnh sửa tiêu đề.',
@@ -231,19 +233,17 @@ export default function TopicSubmissionWizardPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Nộp đề tài nghiên cứu</h1>
-      <p className="text-sm text-gray-500 mb-6">Hoàn thành các bước bên dưới để nộp đề tài mới.</p>
+      <h1 className="text-2xl font-bold text-gray-900 mb-2">Đăng ký Đề tài Nghiên cứu Khoa học</h1>
+      <p className="text-sm text-gray-500 mb-6">Hoàn thành các bước bên dưới để nộp hồ sơ đề tài mới.</p>
 
       <FormStepper steps={STEPS} currentStep={currentStep} completedSteps={completedSteps} onStepClick={setCurrentStep} />
 
-      <div className="bg-white rounded-lg shadow-sm border p-6">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
         {currentStep === 0 && (
           <StepAdmin
             register={register}
             errors={errors}
-            enums={enums}
             departments={departments}
-            control={control}
             researchFieldOptions={(enums.researchField?.length ? enums.researchField : FALLBACK_RESEARCH_FIELDS)}
             researchTypeOptions={(enums.researchType?.length ? enums.researchType : FALLBACK_RESEARCH_TYPES)}
           />
@@ -251,22 +251,33 @@ export default function TopicSubmissionWizardPage() {
         {currentStep === 1 && <StepObjectives control={control} errors={errors} />}
         {currentStep === 2 && <StepMethodology control={control} register={register} errors={errors} watch={watch} />}
         {currentStep === 3 && <StepProductsBudget control={control} errors={errors} />}
-        {currentStep === 4 && <StepAttachments file={proposalFile} onFileSelect={setProposalFile} onRemove={() => setProposalFile(null)} />}
+        {currentStep === 4 && (
+          <StepPersonnelAndAttachments 
+            watch={watch} 
+            setValue={setValue} 
+            userClaims={userClaims}
+            file={proposalFile} 
+            onFileSelect={setProposalFile} 
+            onRemove={() => setProposalFile(null)} 
+          />
+        )}
 
-        <div className="flex items-center justify-between mt-8 pt-6 border-t">
+        <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-100">
           <button type="button" onClick={goBack} disabled={currentStep === 0}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50">
+            className="px-5 py-2.5 text-sm font-semibold text-gray-600 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 transition">
             Quay lại
           </button>
           {currentStep < STEPS.length - 1 ? (
             <button type="button" onClick={goNext}
-              className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+              className="px-6 py-2.5 text-sm font-bold text-white bg-[#1a5ea8] rounded-lg hover:bg-[#15306a] shadow-sm transition">
               Tiếp theo
             </button>
           ) : (
             <button type="button" onClick={onSubmit} disabled={isSubmitting}
-              className="px-6 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50">
-              {isSubmitting ? 'Đang nộp...' : 'Nộp đề tài'}
+              className="px-6 py-2.5 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 shadow-sm transition flex items-center gap-2">
+              {isSubmitting ? (
+                <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg> Đang nộp...</>
+              ) : 'Gửi duyệt'}
             </button>
           )}
         </div>
@@ -276,48 +287,48 @@ export default function TopicSubmissionWizardPage() {
 }
 
 /* ===== Step 0: Administrative Information ===== */
-function StepAdmin({ register, errors, departments, control, researchFieldOptions, researchTypeOptions }) {
+function StepAdmin({ register, errors, departments, researchFieldOptions, researchTypeOptions }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
       <div className="md:col-span-2">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Tên đề tài (Tiếng Việt) *</label>
-        <input {...register('titleVn')} className={`w-full border rounded-md px-3 py-2 text-sm ${errors.titleVn ? 'border-red-500' : 'border-gray-300'}`} />
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tên đề tài (Tiếng Việt) <span className="text-red-500">*</span></label>
+        <input {...register('titleVn')} className={`w-full h-10 border rounded-lg px-3 text-sm focus:ring-2 focus:ring-[#1a5ea8]/20 transition ${errors.titleVn ? 'border-red-500' : 'border-gray-300 focus:border-[#1a5ea8]'}`} />
         {errors.titleVn && <p className="text-xs text-red-500 mt-1">{errors.titleVn.message}</p>}
       </div>
       <div className="md:col-span-2">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Tên đề tài (Tiếng Anh) *</label>
-        <input {...register('titleEn')} className={`w-full border rounded-md px-3 py-2 text-sm ${errors.titleEn ? 'border-red-500' : 'border-gray-300'}`} />
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tên đề tài (Tiếng Anh) <span className="text-red-500">*</span></label>
+        <input {...register('titleEn')} className={`w-full h-10 border rounded-lg px-3 text-sm focus:ring-2 focus:ring-[#1a5ea8]/20 transition ${errors.titleEn ? 'border-red-500' : 'border-gray-300 focus:border-[#1a5ea8]'}`} />
         {errors.titleEn && <p className="text-xs text-red-500 mt-1">{errors.titleEn.message}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Lĩnh vực nghiên cứu *</label>
-        <select {...register('researchField')} className={`w-full border rounded-md px-3 py-2 text-sm ${errors.researchField ? 'border-red-500' : 'border-gray-300'}`}>
-          <option value="">-- Chọn --</option>
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Lĩnh vực nghiên cứu <span className="text-red-500">*</span></label>
+        <select {...register('researchField')} className={`w-full h-10 border rounded-lg px-3 text-sm focus:ring-2 focus:ring-[#1a5ea8]/20 transition ${errors.researchField ? 'border-red-500' : 'border-gray-300 focus:border-[#1a5ea8]'}`}>
+          <option value="">-- Chọn lĩnh vực --</option>
           {researchFieldOptions.map((f) => (<option key={f} value={f}>{f}</option>))}
         </select>
         {errors.researchField && <p className="text-xs text-red-500 mt-1">{errors.researchField.message}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Loại hình nghiên cứu *</label>
-        <div className="flex flex-wrap gap-4 mt-2" role="radiogroup" aria-label="Loại hình nghiên cứu">
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Loại hình nghiên cứu <span className="text-red-500">*</span></label>
+        <div className="flex flex-wrap gap-4 mt-2.5">
           {researchTypeOptions.map((t) => (
-            <label key={t} className="flex items-center gap-1.5 text-sm">
-              <input type="radio" {...register('researchType')} value={t} className="text-blue-600" />
-              {RESEARCH_TYPE_LABELS[t] ?? t}
+            <label key={t} className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <input type="radio" {...register('researchType')} value={t} className="text-[#1a5ea8] focus:ring-[#1a5ea8]" />
+              <span className="text-gray-700">{RESEARCH_TYPE_LABELS[t] ?? t}</span>
             </label>
           ))}
         </div>
         {errors.researchType && <p className="text-xs text-red-500 mt-1">{errors.researchType.message}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Thời gian thực hiện (tháng) *</label>
-        <input type="number" {...register('durationMonths')} className={`w-full border rounded-md px-3 py-2 text-sm ${errors.durationMonths ? 'border-red-500' : 'border-gray-300'}`} />
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Thời gian thực hiện (tháng) <span className="text-red-500">*</span></label>
+        <input type="number" {...register('durationMonths')} className={`w-full h-10 border rounded-lg px-3 text-sm focus:ring-2 focus:ring-[#1a5ea8]/20 transition ${errors.durationMonths ? 'border-red-500' : 'border-gray-300 focus:border-[#1a5ea8]'}`} />
         {errors.durationMonths && <p className="text-xs text-red-500 mt-1">{errors.durationMonths.message}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Đơn vị quản lý *</label>
-        <select {...register('managingDepartmentId')} className={`w-full border rounded-md px-3 py-2 text-sm ${errors.managingDepartmentId ? 'border-red-500' : 'border-gray-300'}`}>
-          <option value="">-- Chọn --</option>
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Đơn vị quản lý <span className="text-red-500">*</span></label>
+        <select {...register('managingDepartmentId')} className={`w-full h-10 border rounded-lg px-3 text-sm focus:ring-2 focus:ring-[#1a5ea8]/20 transition ${errors.managingDepartmentId ? 'border-red-500' : 'border-gray-300 focus:border-[#1a5ea8]'}`}>
+          <option value="">-- Chọn khoa/phòng ban --</option>
           {departments.map((d) => (<option key={d.departmentId} value={String(d.departmentId)}>{d.departmentName}</option>))}
         </select>
         {errors.managingDepartmentId && <p className="text-xs text-red-500 mt-1">{errors.managingDepartmentId.message}</p>}
@@ -354,8 +365,8 @@ function StepMethodology({ control, register, errors, watch }) {
         <RichTextEditor label="Phương pháp nghiên cứu *" value={field.value} onChange={field.onChange} minLength={30} error={errors.researchMethods?.message} />
       )} />
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Phạm vi nghiên cứu *</label>
-        <textarea {...register('researchScope')} rows={4} className={`w-full border rounded-md px-3 py-2 text-sm ${errors.researchScope ? 'border-red-500' : 'border-gray-300'}`} />
+        <label className="block text-sm font-semibold text-gray-700 mb-1.5">Đối tượng và phạm vi nghiên cứu *</label>
+        <textarea {...register('researchScope')} rows={4} className={`w-full border rounded-lg p-3 text-sm focus:ring-2 focus:ring-[#1a5ea8]/20 transition ${errors.researchScope ? 'border-red-500' : 'border-gray-300 focus:border-[#1a5ea8]'}`} />
         <div className="flex justify-between text-xs mt-1">
           {errors.researchScope && <span className="text-red-500">{errors.researchScope.message}</span>}
           <span className="text-gray-400 ml-auto">{(watch('researchScope') || '').length}/2000</span>
@@ -372,8 +383,8 @@ function StepMethodology({ control, register, errors, watch }) {
 function StepProductsBudget({ control, errors }) {
   return (
     <div className="space-y-6">
-      <div className="border-b pb-4 mb-2">
-        <h3 className="text-base font-semibold text-gray-800">Sản phẩm dự kiến</h3>
+      <div className="border-b border-gray-100 pb-3 mb-4">
+        <h3 className="text-lg font-bold text-[#1a5ea8]">Sản phẩm dự kiến</h3>
         <p className="text-xs text-gray-500 mt-1">Mô tả các sản phẩm khoa học dự kiến đạt được từ đề tài nghiên cứu.</p>
       </div>
 
@@ -401,11 +412,11 @@ function StepProductsBudget({ control, errors }) {
         />
       )} />
 
-      <div className="border-t pt-6 mt-4">
-        <h3 className="text-base font-semibold text-gray-800 mb-4">Kinh phí</h3>
+      <div className="border-t border-gray-100 pt-6 mt-4">
+        <h3 className="text-lg font-bold text-[#1a5ea8] mb-4">Kinh phí thực hiện</h3>
 
         <div className="mb-5">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Tổng kinh phí dự kiến (VND) *</label>
+          <label className="block text-sm font-semibold text-gray-700 mb-1.5">Tổng kinh phí dự kiến (VND) <span className="text-red-500">*</span></label>
           <Controller name="expectedBudget" control={control} render={({ field }) => (
             <NumericFormat
               value={field.value}
@@ -413,8 +424,8 @@ function StepProductsBudget({ control, errors }) {
               thousandSeparator=","
               suffix=" VND"
               decimalScale={0}
-              className={`w-full border rounded-md px-3 py-2 text-sm ${errors.expectedBudget ? 'border-red-500' : 'border-gray-300'}`}
-              placeholder="0 VND"
+              className={`w-full h-10 border rounded-lg px-3 text-sm focus:ring-2 focus:ring-[#1a5ea8]/20 transition ${errors.expectedBudget ? 'border-red-500' : 'border-gray-300 focus:border-[#1a5ea8]'}`}
+              placeholder="Ví dụ: 50,000,000 VND"
             />
           )} />
           {errors.expectedBudget && <p className="text-xs text-red-500 mt-1">{errors.expectedBudget.message}</p>}
@@ -432,13 +443,105 @@ function StepProductsBudget({ control, errors }) {
   );
 }
 
-/* ===== Step 4: Attachments ===== */
-function StepAttachments({ file, onFileSelect, onRemove }) {
+/* ===== Step 4: Personnel & Attachments ===== */
+function StepPersonnelAndAttachments({ watch, setValue, userClaims, file, onFileSelect, onRemove }) {
+  const memberNames = watch('memberNames') || [];
+
+  const addMember = () => {
+    setValue('memberNames', [...memberNames, '']);
+  };
+
+  const removeMember = (indexToRemove) => {
+    const newArr = [...memberNames];
+    newArr.splice(indexToRemove, 1);
+    setValue('memberNames', newArr);
+  };
+
+  const updateMember = (index, value) => {
+    const newArr = [...memberNames];
+    newArr[index] = value;
+    setValue('memberNames', newArr);
+  };
+
   return (
-    <div className="space-y-4">
-      <h3 className="text-sm font-medium text-gray-700">Tệp thuyết minh đề tài</h3>
-      <DragDropZone file={file} onFileSelect={onFileSelect} onRemove={onRemove} />
-      <p className="text-xs text-gray-400">Tệp sẽ được tải lên sau khi đề tài được tạo thành công. Chấp nhận: PDF, DOC, DOCX (tối đa 10 MB).</p>
+    <div className="space-y-8">
+      
+      {/* ── Khu vực Nhân sự ── */}
+      <div>
+        <h3 className="text-lg font-bold text-[#1a5ea8] border-b border-gray-100 pb-3 mb-5">Nhân sự thực hiện</h3>
+        
+        {/* Chủ nhiệm */}
+        <div className="mb-6">
+          <p className="text-sm font-bold text-gray-700 mb-3">Chủ nhiệm đề tài</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Họ và tên</label>
+              <input readOnly value={userClaims?.fullName || ''} className="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg px-3 text-sm text-gray-600 font-semibold focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Vai trò</label>
+              <input readOnly value="Chủ nhiệm" className="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg px-3 text-sm text-gray-600 font-semibold focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email liên hệ</label>
+              <input readOnly value={userClaims?.email || ''} className="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg px-3 text-sm text-gray-600 font-semibold focus:outline-none truncate" />
+            </div>
+          </div>
+        </div>
+
+        {/* Thành viên */}
+        <div>
+          <p className="text-sm font-bold text-gray-700 mb-3">Thành viên tham gia</p>
+          {memberNames.length === 0 ? (
+             <p className="text-sm text-gray-400 italic mb-4 p-4 bg-gray-50 border border-dashed border-gray-200 rounded-lg text-center">
+               Chưa có thành viên nào được thêm. Đề tài sẽ do Chủ nhiệm thực hiện độc lập.
+             </p>
+          ) : (
+             <div className="space-y-3 mb-4">
+               {memberNames.map((memberName, idx) => {
+                 return (
+                   <div key={idx} className="flex flex-col md:flex-row items-end gap-3 bg-blue-50/30 p-4 rounded-xl border border-blue-100">
+                     <div className="flex-1 w-full">
+                       <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Họ và tên thành viên</label>
+                       <input
+                         type="text"
+                         value={memberName}
+                         onChange={(e) => updateMember(idx, e.target.value)}
+                         className="w-full h-10 border border-gray-300 rounded-lg px-3 text-sm bg-white focus:ring-2 focus:ring-[#1a5ea8]/20 focus:border-[#1a5ea8] transition"
+                         placeholder="Nhập họ và tên thành viên"
+                       />
+                     </div>
+                     <div className="w-full md:w-[150px]">
+                       <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">Vai trò</label>
+                       <input readOnly value="Thành viên" className="w-full h-10 bg-gray-100 border border-gray-200 rounded-lg px-3 text-sm text-gray-500 font-medium focus:outline-none" />
+                     </div>
+                     <button type="button" onClick={() => removeMember(idx)} className="h-10 px-4 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 text-sm font-bold transition flex items-center justify-center flex-shrink-0 w-full md:w-auto">
+                       Xóa
+                     </button>
+                   </div>
+                 )
+               })}
+             </div>
+          )}
+          <button type="button" onClick={addMember} className="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition shadow-sm">
+            <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+            Thêm thành viên tham gia
+          </button>
+        </div>
+      </div>
+
+      {/* ── Khu vực Tài liệu đính kèm ── */}
+      <div className="border-t border-gray-100 pt-8 mt-4">
+        <h3 className="text-lg font-bold text-[#1a5ea8] mb-4">Tài liệu đính kèm</h3>
+        <DragDropZone file={file} onFileSelect={onFileSelect} onRemove={onRemove} />
+        <div className="mt-3 p-4 bg-amber-50 border border-amber-100 rounded-lg">
+          <p className="text-xs font-medium text-amber-800 leading-relaxed">
+            <strong className="font-bold">Lưu ý:</strong> Vui lòng tải lên bản Thuyết minh đề tài toàn văn theo mẫu chuẩn của Bộ KH&CN. <br/>
+            Định dạng cho phép: <span className="font-bold">PDF, DOC, DOCX</span>. Dung lượng tối đa: <span className="font-bold">15MB</span>.
+          </p>
+        </div>
+      </div>
+
     </div>
   );
 }

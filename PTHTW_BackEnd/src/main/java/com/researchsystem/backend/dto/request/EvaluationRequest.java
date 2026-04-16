@@ -24,23 +24,23 @@ public class EvaluationRequest {
 
     @NotNull(message = "Score for urgency must not be null")
     @DecimalMin(value = "0.00", message = "Score must be at least 0.00")
-    @DecimalMax(value = "10.00", message = "Score must not exceed 10.00")
+    @DecimalMax(value = "15.00", message = "Score must not exceed 15.00")
     private BigDecimal scoreUrgency;
 
     @NotNull(message = "Score for content must not be null")
-    @DecimalMin(value = "0.00") @DecimalMax(value = "10.00")
+    @DecimalMin(value = "0.00") @DecimalMax(value = "25.00")
     private BigDecimal scoreContent;
 
     @NotNull(message = "Score for objectives must not be null")
-    @DecimalMin(value = "0.00") @DecimalMax(value = "10.00")
+    @DecimalMin(value = "0.00") @DecimalMax(value = "20.00")
     private BigDecimal scoreObjectives;
 
     @NotNull(message = "Score for methodology must not be null")
-    @DecimalMin(value = "0.00") @DecimalMax(value = "10.00")
+    @DecimalMin(value = "0.00") @DecimalMax(value = "20.00")
     private BigDecimal scoreMethodology;
 
     @NotNull(message = "Score for feasibility must not be null")
-    @DecimalMin(value = "0.00") @DecimalMax(value = "10.00")
+    @DecimalMin(value = "0.00") @DecimalMax(value = "20.00")
     private BigDecimal scoreFeasibility;
 
     @NotNull(message = "Score for capacity must not be null")

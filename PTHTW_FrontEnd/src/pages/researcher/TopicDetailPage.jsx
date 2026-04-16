@@ -1,5 +1,3 @@
-// File: src/pages/researcher/TopicDetail.jsx
-
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { topicsApi } from '../../api/topics.api';
@@ -159,7 +157,7 @@ const CouncilMinutesModal = ({ minute, onClose }) => {
 
 // ─── Main Page Component ──────────────────────────────────────────────────────
 
-export default function TopicDetail() {
+export default function TopicDetailPage() {
   const { topicId } = useParams();
   const navigate = useNavigate();
   const addToast = useUiStore((s) => s.addToast);
@@ -272,9 +270,11 @@ export default function TopicDetail() {
             <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold shadow-sm ${getStatusColor(topic.topicStatus)}`}>
               {getStatusLabel(topic.topicStatus)}
             </span>
+            
+            {/* [CẬP NHẬT LOGIC NÚT]: Hiển thị rõ ràng cho Chủ nhiệm biết cần phải sửa */}
             {canEdit && (
-              <Link to={`/researcher/topics/${topicId}/revise`} className="flex items-center gap-2 h-9 px-5 rounded-lg bg-[#1a5ea8] hover:bg-[#15306a] text-white text-sm font-bold transition shadow-sm">
-                <IcEdit cls="w-4 h-4" /> Cập nhật hồ sơ
+              <Link to={`/researcher/topics/${topicId}/revise`} className="flex items-center gap-2 h-9 px-5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold transition shadow-sm animate-pulse">
+                <IcEdit cls="w-4 h-4" /> Bổ sung / Cập nhật hồ sơ
               </Link>
             )}
           </div>
@@ -337,6 +337,19 @@ export default function TopicDetail() {
                 <InfoRow label="Loại hình nghiên cứu" value={RESEARCH_TYPE_LABELS[topic.researchType] ?? topic.researchType} />
                 <InfoRow label="Đơn vị quản lý" value={topic.managingDepartmentName} />
                 <InfoRow label="Thời gian thực hiện" value={`${topic.durationMonths} tháng`} />
+
+                <div className="col-span-1 md:col-span-2 mt-2 pt-4 border-t border-gray-100">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-2">Thành viên tham gia</span>
+                  {topic.members && topic.members.length > 0 ? (
+                    <ul className="list-disc list-inside text-sm text-gray-800 space-y-1">
+                      {topic.members.map((m, index) => (
+                        <li key={m.id || index}><span className="font-semibold">{m.memberName}</span></li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-sm text-gray-500 italic">Không có thành viên tham gia phụ. Chủ nhiệm thực hiện độc lập.</span>
+                  )}
+                </div>
               </div>
             </SectionCard>
 

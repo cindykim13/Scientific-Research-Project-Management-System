@@ -74,14 +74,14 @@ export default function CouncilMemberDashboardPage() {
 
   const activePool = workspace === 'secretary' ? secretaryTopics : evaluatorTopics;
 
-  const pendingTopics = useMemo(() => activePool.filter((t) => t.topicStatus === 'PENDING_COUNCIL'), [activePool]);
-  const completedTopics = useMemo(() => activePool.filter((t) => t.topicStatus !== 'PENDING_COUNCIL'), [activePool]);
+  const pendingTopics = useMemo(() => activePool.filter((t) => t.topicStatus === 'PENDING_COUNCIL' || t.topicStatus === 'COUNCIL_REVIEWED'), [activePool]);
+  const completedTopics = useMemo(() => activePool.filter((t) => t.topicStatus !== 'PENDING_COUNCIL' && t.topicStatus !== 'COUNCIL_REVIEWED'), [activePool]);
 
   const filteredTopics = activeTab === 'pending' ? pendingTopics : completedTopics;
 
   // ─── Render Helpers ───
   const getStatusCfg = (status) => {
-    if (status === 'PENDING_COUNCIL') return STATUS_BADGE_CFG.PENDING_COUNCIL;
+    if (status === 'PENDING_COUNCIL' || status === 'COUNCIL_REVIEWED') return STATUS_BADGE_CFG.PENDING_COUNCIL;
     if (['APPROVED', 'REVISION_REQUIRED', 'REJECTED'].includes(status)) return STATUS_BADGE_CFG.COMPLETED;
     return STATUS_BADGE_CFG.DEFAULT;
   };
@@ -288,8 +288,12 @@ export default function CouncilMemberDashboardPage() {
 
 function TopicAction({ topic }) {
   const { topicId, topicStatus, councilRole } = topic;
-  const isPending = topicStatus === 'PENDING_COUNCIL';
+  
+  // SỬA LỖI: Tái sử dụng lại biến isPending để tránh lỗi unused-vars
+  const isPending = topicStatus === 'PENDING_COUNCIL' || topicStatus === 'COUNCIL_REVIEWED'; 
+  const evaluationRoles = new Set(['PRESIDENT', 'MEMBER', 'REVIEWER', 'REVIEWER_1', 'REVIEWER_2']);
 
+  // Trường hợp đã có biên bản (Kết thúc hội đồng) -> Không còn là isPending nữa
   if (!isPending) {
     return (
       <Link 
@@ -302,6 +306,7 @@ function TopicAction({ topic }) {
     );
   }
 
+  // Trường hợp đang trong phiên họp
   if (councilRole === 'SECRETARY') {
     return (
       <div className="flex items-center justify-center gap-2">
@@ -312,24 +317,25 @@ function TopicAction({ topic }) {
           <IcVideo cls="w-3.5 h-3.5" />
           Quản trị phiên họp
         </Link>
-        <Link
-          to={`/council/topics/${topicId}/minute`}
-          className="inline-flex items-center justify-center h-9 px-3 text-xs font-bold border border-green-600 text-green-700 rounded-lg hover:bg-green-50 transition"
-          title="Lập biên bản"
-        >
-          <IcDoc cls="w-3.5 h-3.5" />
-        </Link>
       </div>
     );
   }
 
+  if (evaluationRoles.has(councilRole)) {
+    return (
+      <Link 
+        to={`/council/topics/${topicId}/evaluate`}
+        className="inline-flex items-center justify-center gap-1.5 h-9 px-4 text-xs font-bold bg-[#1a5ea8] text-white rounded-lg hover:bg-[#15306a] hover:shadow-md transition"
+      >
+        <IcClipboard cls="w-3.5 h-3.5" />
+        Vào phòng đánh giá
+      </Link>
+    );
+  }
+
   return (
-    <Link 
-      to={`/council/topics/${topicId}/evaluate`}
-      className="inline-flex items-center justify-center gap-1.5 h-9 px-4 text-xs font-bold bg-[#1a5ea8] text-white rounded-lg hover:bg-[#15306a] hover:shadow-md transition"
-    >
-      <IcClipboard cls="w-3.5 h-3.5" />
-      Vào phòng đánh giá
-    </Link>
+    <span className="inline-flex items-center justify-center h-9 px-4 rounded-lg border border-gray-200 text-gray-400 text-xs font-bold">
+      Không khả dụng
+    </span>
   );
 }

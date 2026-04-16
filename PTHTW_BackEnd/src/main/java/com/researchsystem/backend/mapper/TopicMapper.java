@@ -1,38 +1,41 @@
 package com.researchsystem.backend.mapper;
 
+import com.researchsystem.backend.domain.entity.Topic;
+import com.researchsystem.backend.domain.entity.TopicAttachment;
+import com.researchsystem.backend.domain.entity.TopicMember;
+import com.researchsystem.backend.dto.request.TopicCreationRequest;
+import com.researchsystem.backend.dto.response.AttachmentResponse;
+import com.researchsystem.backend.dto.response.TopicDetailResponse;
+import com.researchsystem.backend.dto.response.TopicListResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 
-import com.researchsystem.backend.domain.entity.Topic;
-import com.researchsystem.backend.dto.request.TopicCreationRequest;
-import com.researchsystem.backend.dto.response.TopicDetailResponse;
-import com.researchsystem.backend.dto.response.TopicListResponse;
-
-@Mapper(componentModel = "spring",
-        unmappedTargetPolicy = ReportingPolicy.IGNORE,
-        uses = {AuditLogMapper.class})
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE, uses = {AuditLogMapper.class})
 public interface TopicMapper {
 
-    @Mapping(target = "investigatorFullName", source = "investigator.fullName")
-    @Mapping(target = "managingDepartmentName", source = "managingDepartment.departmentName")
-    @Mapping(target = "titleEn", source = "titleEn")
-    TopicListResponse toListResponse(Topic topic);
-
-    @Mapping(target = "investigatorFullName", source = "investigator.fullName")
-    @Mapping(target = "managingDepartmentName", source = "managingDepartment.departmentName")
-    @Mapping(target = "titleEn", source = "titleEn")
-    TopicDetailResponse toDetailResponse(Topic topic);
-
     @Mapping(target = "topicId", ignore = true)
-    @Mapping(target = "topicStatus", ignore = true)
-    @Mapping(target = "fileVersion", ignore = true)
-    @Mapping(target = "titleEn", source = "titleEn")
-    @Mapping(target = "submissionDate", ignore = true)
-    @Mapping(target = "investigator", ignore = true)
-    @Mapping(target = "managingDepartment", ignore = true)
-    @Mapping(target = "assignedCouncil", ignore = true)
-    @Mapping(target = "topicAttachments", ignore = true)
-    @Mapping(target = "auditLogs", ignore = true)
+    @Mapping(target = "members", ignore = true)
     Topic toEntity(TopicCreationRequest request);
+
+    @Mapping(source = "topicId", target = "topicId")
+    @Mapping(source = "investigator.fullName", target = "investigatorFullName")
+    @Mapping(source = "managingDepartment.departmentName", target = "managingDepartmentName")
+    TopicListResponse toListResponse(Topic entity);
+
+    @Mapping(source = "topicId", target = "topicId")
+    @Mapping(source = "investigator.fullName", target = "investigatorFullName")
+    @Mapping(source = "investigator.email", target = "investigatorEmail")
+    @Mapping(source = "managingDepartment.departmentName", target = "managingDepartmentName")
+    @Mapping(source = "sessionActive", target = "isSessionActive")
+    // MapStruct sẽ tự động nhận diện mảng members do trùng tên
+    // MapStruct sẽ tự động dùng hàm toAttachmentResponse bên dưới để map mảng topicAttachments -> attachments
+    @Mapping(source = "topicAttachments", target = "attachments")
+    TopicDetailResponse toDetailResponse(Topic entity);
+
+    // KẾT CẤU MỚI: Chỉ cần định nghĩa khuôn mẫu cho phần tử con, 
+    // MapStruct sẽ tự động lo phần List và Builder để tránh lỗi AST Null.
+    TopicDetailResponse.TopicMemberInfo toTopicMemberInfo(TopicMember member);
+
+    AttachmentResponse toAttachmentResponse(TopicAttachment attachment);
 }

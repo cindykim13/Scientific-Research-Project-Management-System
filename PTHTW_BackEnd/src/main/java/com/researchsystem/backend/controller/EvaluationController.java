@@ -14,9 +14,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
@@ -49,5 +51,26 @@ public class EvaluationController {
             @Parameter(hidden = true) Principal principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(evaluationService.submitEvaluation(request, principal.getName()));
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('COUNCIL')")
+    @Operation(
+            summary = "Retrieve the authenticated member's evaluation for a topic",
+            description = "Returns the existing evaluation if one has been submitted or drafted. " +
+                          "Used to restore form state on page reload and enforce post-submission immutability."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Evaluation found and returned"),
+            @ApiResponse(responseCode = "204", description = "No evaluation exists yet for this member/topic"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — ownership mismatch or COUNCIL role required")
+    })
+    public ResponseEntity<EvaluationResponse> getMyEvaluation(
+            @RequestParam("topicId") Long topicId,
+            @RequestParam("councilMemberId") Long councilMemberId,
+            @Parameter(hidden = true) Principal principal) {
+        return evaluationService.getMyEvaluation(topicId, councilMemberId, principal.getName())
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
     }
 }

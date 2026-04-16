@@ -20,6 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.authentication.LockedException;
 
 import java.time.LocalDateTime;
 
@@ -285,5 +286,19 @@ public class GlobalExceptionHandler {
                 .build();
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<ApiErrorResponse> handleLockedException(
+            LockedException ex, HttpServletRequest request) {
+
+        ApiErrorResponse body = ApiErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.LOCKED.value())
+                .error(HttpStatus.LOCKED.getReasonPhrase())
+                .message(ex.getMessage()) // Hiển thị thông báo "Tài khoản đã bị khóa..."
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.LOCKED).body(body);
     }
 }

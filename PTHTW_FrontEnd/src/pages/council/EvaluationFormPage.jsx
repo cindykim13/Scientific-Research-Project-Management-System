@@ -18,8 +18,10 @@ import { councilsApi } from '../../api/councils.api';
 import { topicsApi } from '../../api/topics.api';
 import useAuthStore from '../../store/authStore';
 import useUiStore from '../../store/uiStore';
+import ForbiddenPage from '../../components/error/ForbiddenPage';
 import FocusTrappedModal from '../../components/ui/FocusTrappedModal';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import RichTextDisplay from '../../components/ui/RichTextDisplay';
 import { applyFieldErrors } from '../../utils/errorHandler';
 import { getCouncilRoleLabel } from '../../utils/formatters';
 
@@ -53,6 +55,8 @@ const suggestGrade = (score) => {
   return "KHONG_DAT";
 };
 
+const EVALUATION_ROLES = new Set(['PRESIDENT', 'MEMBER', 'REVIEWER', 'REVIEWER_1', 'REVIEWER_2']);
+
 // ─── Schema Validation ────────────────────────────────────────────────────────
 
 const schema = yup.object({
@@ -65,7 +69,7 @@ const schema = yup.object({
   scoreProducts: yup.number().default(0),
   generalComment: yup.string().required('Cần nhập kết luận').min(50, 'Tối thiểu 50 ký tự'),
   recommendedDecision: yup.string().required('Bắt buộc').oneOf(['APPROVED', 'REVISION_REQUIRED', 'REJECTED']),
-  gradeAuto: yup.string().required('Cần xếp loại'), // Added virtual field for UI state
+  gradeAuto: yup.string().required('Cần xếp loại'), 
 });
 
 // ─── SVG Factory ────────────────────────────────────────────────────────────────
@@ -85,8 +89,7 @@ const IcClipboard = p => <Svg {...p} d={["M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a
 const IcStar      = p => <Svg {...p} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />;
 const IcDoc       = p => <Svg {...p} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />;
 const IcLoader    = p => <Svg {...p} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />;
-const IcPublish   = p => <Svg {...p} d={["M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"]} />;
-
+const IcLock      = p => <Svg {...p} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />;
 
 // ─── Components ───────────────────────────────────────────────────────────────
 
@@ -206,8 +209,19 @@ const CriterionRow = ({ criterion, register, errors, control, disabled }) => {
               </span>
             )}
           </div>
-          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden flex items-center justify-between px-1">
-             <input type="range" min={0} max={criterion.maxScore} step={0.25}
+          
+          <div className="relative h-2.5 bg-gray-100 rounded-full overflow-hidden flex items-center">
+            <div 
+              className={`absolute left-0 top-0 h-full rounded-full transition-all duration-300 pointer-events-none ${
+                isInvalid ? "bg-red-400" : pct >= 80 ? "bg-green-400" : pct >= 50 ? "bg-amber-400" : "bg-blue-400"
+              }`} 
+              style={{ width: `${pct}%` }} 
+            />
+            <input 
+              type="range" 
+              min="0" 
+              max={criterion.maxScore} 
+              step="0.25"
               value={isValid ? numVal : 0}
               disabled={disabled}
               onChange={(e) => {
@@ -218,17 +232,57 @@ const CriterionRow = ({ criterion, register, errors, control, disabled }) => {
                   el.dispatchEvent(new Event('input', { bubbles: true }));
                 }
               }}
-              className="w-full h-1 bg-transparent appearance-none cursor-pointer accent-[#1a5ea8] z-10 relative outline-none" 
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed" 
             />
-            <div className={`absolute left-0 h-2.5 rounded-full transition-all duration-300 ${isInvalid ? "bg-red-400" : pct >= 80 ? "bg-green-400" : pct >= 50 ? "bg-amber-400" : "bg-blue-400"}`} style={{ width: `calc(${pct}% - 2rem)` }} />
           </div>
+
           {(isInvalid || errors[criterion.id]) && (
-            <p className="text-[11px] text-red-600 font-semibold flex items-center gap-1">
+            <p className="text-[11px] text-red-600 font-semibold flex items-center gap-1 mt-0.5">
               <IcAlert cls="w-3 h-3 flex-shrink-0" /> {errors[criterion.id]?.message || `Tối đa ${criterion.maxScore} điểm`}
             </p>
           )}
         </div>
       </div>
+    </div>
+  );
+};
+
+const TopicContextFallback = ({ topic }) => {
+  const richSections = [
+    { key: 'urgencyStatement', label: 'Tính cấp thiết' },
+    { key: 'generalObjective', label: 'Mục tiêu tổng quát' },
+    { key: 'specificObjectives', label: 'Mục tiêu cụ thể' },
+    { key: 'researchMethods', label: 'Phương pháp nghiên cứu' },
+    { key: 'researchScope', label: 'Phạm vi nghiên cứu' },
+  ];
+
+  return (
+    <div className="h-full overflow-y-auto p-4 space-y-4">
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Mã đề tài</p>
+        <p className="text-sm font-bold text-[#1a5ea8] mt-1">{topic?.topicCode || '—'}</p>
+        <p className="text-[13px] font-bold text-gray-800 mt-2">{topic?.titleVn || '—'}</p>
+        {topic?.titleEn && <p className="text-xs text-gray-500 mt-1">{topic.titleEn}</p>}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-4 grid grid-cols-1 gap-2">
+        <p className="text-xs"><span className="font-semibold">Chủ nhiệm:</span> {topic?.investigatorFullName || '—'}</p>
+        <p className="text-xs"><span className="font-semibold">Đơn vị:</span> {topic?.managingDepartmentName || '—'}</p>
+        <p className="text-xs"><span className="font-semibold">Thời gian:</span> {topic?.durationMonths ? `${topic.durationMonths} tháng` : '—'}</p>
+      </div>
+
+      {richSections.map((section) => (
+        topic?.[section.key] ? (
+          <div key={section.key} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+              <p className="text-[11px] font-bold text-gray-700">{section.label}</p>
+            </div>
+            <div className="px-4 py-3 prose prose-sm max-w-none">
+              <RichTextDisplay html={topic[section.key]} />
+            </div>
+          </div>
+        ) : null
+      ))}
     </div>
   );
 };
@@ -243,14 +297,18 @@ export default function EvaluationFormPage() {
 
   // States
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
   const [topic, setTopic] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
+  const [activeAttachmentName, setActiveAttachmentName] = useState('Tài liệu đính kèm');
   const [councilMemberId, setCouncilMemberId] = useState(null);
   const [assignmentRole, setAssignmentRole] = useState(null);
   
+  const [isSessionActive, setIsSessionActive] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [justSubmitted, setJustSubmitted] = useState(false);
 
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
@@ -275,6 +333,7 @@ export default function EvaluationFormPage() {
 
   // ABAC Guard & Load
   useEffect(() => {
+    let objectUrl;
     const load = async () => {
       try {
         const [topicRes, myTopicsList] = await Promise.all([
@@ -284,29 +343,89 @@ export default function EvaluationFormPage() {
         setTopic(topicRes.data);
 
         const assignment = myTopicsList.find((t) => String(t.topicId) === String(topicId));
-        
-        if (assignment?.councilRole === 'SECRETARY') {
+
+        if (!assignment) {
+          setForbidden(true);
+          return;
+        }
+
+        if (assignment.councilRole === 'SECRETARY') {
           navigate(`/council/topics/${topicId}/session`, { replace: true });
           return;
         }
-        
-        if (assignment?.councilMemberId) {
-          setCouncilMemberId(assignment.councilMemberId);
-          setAssignmentRole(assignment.councilRole);
+
+        if (!EVALUATION_ROLES.has(assignment.councilRole)) {
+          setForbidden(true);
+          return;
         }
 
-        if (topicRes.data?.attachments?.length > 0) {
-          const att = topicRes.data.attachments[0];
-          const blobRes = await topicsApi.downloadAttachment(topicId, att.attachmentId);
-          const url = URL.createObjectURL(blobRes.data);
-          setPdfUrl(url);
+        const active = assignment.sessionActive === true || assignment.isSessionActive === true || topicRes.data?.sessionActive === true || topicRes.data?.isSessionActive === true;
+        setIsSessionActive(active);
+
+        if (assignment.councilMemberId) {
+          setCouncilMemberId(assignment.councilMemberId);
+          setAssignmentRole(assignment.councilRole);
+
+          try {
+            const evalRes = await evaluationsApi.getMyEvaluation(topicId, assignment.councilMemberId);
+            if (evalRes.status === 200 && evalRes.data) {
+              const ev = evalRes.data;
+              if (ev.submissionStatus === 'SUBMITTED') {
+                setValue('scoreUrgency', ev.scoreUrgency, { shouldValidate: true });
+                setValue('scoreContent', ev.scoreContent, { shouldValidate: true });
+                setValue('scoreObjectives', ev.scoreObjectives, { shouldValidate: true });
+                setValue('scoreMethodology', ev.scoreMethodology, { shouldValidate: true });
+                setValue('scoreFeasibility', ev.scoreFeasibility, { shouldValidate: true });
+                setValue('generalComment', ev.generalComment, { shouldValidate: true });
+                setValue('recommendedDecision', ev.recommendedDecision, { shouldValidate: true });
+                setSubmitted(true);
+              }
+            }
+          } catch { /* 204 No Content or network error — no prior evaluation */ }
+        }
+
+        const attachments = topicRes.data?.attachments ?? [];
+        const preferredAttachment = attachments.find((att) => {
+          const name = `${att?.fileName ?? ''}`.toLowerCase();
+          const mimeType = `${att?.contentType ?? ''}`.toLowerCase();
+          return mimeType.includes('pdf') || name.endsWith('.pdf');
+        }) ?? attachments[0];
+
+        if (preferredAttachment) {
+          setActiveAttachmentName(preferredAttachment.fileName || 'Tài liệu đính kèm');
+          try {
+            const blobRes = await topicsApi.downloadAttachment(topicId, preferredAttachment.attachmentId);
+            objectUrl = URL.createObjectURL(blobRes.data);
+            setPdfUrl(objectUrl);
+          } catch {
+            setPdfUrl(null);
+          }
         }
       } catch { /* Interceptor */ }
       finally { setLoading(false); }
     };
     load();
-    return () => { if (pdfUrl) URL.revokeObjectURL(pdfUrl); };
-  }, [topicId]);
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [topicId, navigate, setValue]);
+
+  // [BỔ SUNG]: Polling cơ chế thời gian thực để mở khóa Form ngay lập tức khi Thư ký bấm bắt đầu
+  useEffect(() => {
+    let interval;
+    if (!isSessionActive && !forbidden && !loading) {
+      interval = setInterval(async () => {
+        try {
+          const res = await topicsApi.getById(topicId);
+          if (res.data?.sessionActive === true || res.data?.isSessionActive === true) {
+            setIsSessionActive(true);
+            addToast({ type: 'success', message: 'Thư ký đã bắt đầu phiên họp. Form chấm điểm đã được mở khóa!', duration: 5000 });
+          }
+        } catch {
+          // silent - [VÁ LỖI ESLINT NO-UNUSED-VARS]
+        }
+      }, 10000); // Quét mỗi 10 giây
+    }
+    return () => clearInterval(interval);
+  }, [isSessionActive, forbidden, loading, topicId, addToast]);
 
   // Total Calculation
   const totalScore = useMemo(() => {
@@ -337,14 +456,15 @@ export default function EvaluationFormPage() {
   }, [totalScore, allCriteriaFilledAndValid, setValue, submitted]);
 
   useEffect(() => {
-    if (!submitted) return undefined;
+    if (!justSubmitted) return undefined;
     const t = setTimeout(() => navigate('/council/dashboard'), 3500);
     return () => clearTimeout(t);
-  }, [submitted, navigate]);
+  }, [justSubmitted, navigate]);
 
-  const canSave = allCriteriaFilledAndValid && conclusion?.trim().length > 0 && decision !== "" && !submitted;
+  const canSave = allCriteriaFilledAndValid && conclusion?.trim().length > 0 && decision !== "" && !submitted && isSessionActive;
 
   const onSubmit = async (data) => {
+    if (!councilMemberId) return;
     setSubmitting(true);
     try {
       await evaluationsApi.submit({
@@ -362,6 +482,7 @@ export default function EvaluationFormPage() {
       });
       setConfirmOpen(false);
       setSubmitted(true);
+      setJustSubmitted(true);
       addToast({
         type: 'success',
         message: 'Đã lưu phiếu đánh giá thành công. Cảm ơn bạn đã hoàn thành nhiệm vụ Hội đồng!',
@@ -382,6 +503,8 @@ export default function EvaluationFormPage() {
       </div>
     );
   }
+
+  if (forbidden) return <ForbiddenPage />;
 
   const totalPct = Math.round((totalScore / MAX_TOTAL) * 100);
   const gradeCfg = GRADE_CFG[grade];
@@ -427,7 +550,7 @@ export default function EvaluationFormPage() {
         <div className="flex flex-col bg-[#E0E0E0] border-r border-gray-300 z-10 shadow-lg" style={{ width: "55%" }}>
           <div className="flex items-center px-4 py-2.5 bg-[#f5f5f5] border-b border-gray-300 flex-shrink-0">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-white shadow-sm text-gray-800 border border-gray-200">
-              <IcDoc cls="w-3.5 h-3.5 text-red-500" /> Thuyết minh đề tài.pdf
+              <IcDoc cls="w-3.5 h-3.5 text-red-500" /> {activeAttachmentName}
             </div>
           </div>
           <div className="flex-1 overflow-auto flex items-start justify-center">
@@ -438,16 +561,30 @@ export default function EvaluationFormPage() {
                 </Worker>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-gray-400 gap-2">
-                <IcDoc cls="w-10 h-10" />
-                <p className="text-sm font-medium">Không có tệp đính kèm nào được tải lên hệ thống.</p>
-              </div>
+              <TopicContextFallback topic={topic} />
             )}
           </div>
         </div>
 
         {/* ────────────────────── Right Panel: Evaluation Form (45%) ────────────────────── */}
         <div className="flex flex-col bg-white overflow-hidden relative" style={{ width: "45%" }}>
+          
+          {/* LỚP PHỦ KHÓA FORM KHI CHƯA BẮT ĐẦU */}
+          {!isSessionActive && !submitted && (
+            <div className="absolute inset-0 z-50 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center">
+              <div className="w-16 h-16 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center mb-4 shadow-sm">
+                <IcLock cls="w-8 h-8 text-gray-500" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800">Phiên họp chưa bắt đầu</h3>
+              <p className="text-sm text-gray-600 mt-2 max-w-[300px] leading-relaxed">
+                Bạn có thể đọc Thuyết minh đề tài ở bên trái. Form chấm điểm sẽ tự động mở khóa ngay khi Thư ký điều hành bấm nút Bắt đầu.
+              </p>
+              <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-xs font-bold animate-pulse">
+                <IcLoader cls="w-4 h-4 animate-spin" /> Đang chờ Thư ký...
+              </div>
+            </div>
+          )}
+
           <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50/60 to-white flex-shrink-0">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -471,7 +608,7 @@ export default function EvaluationFormPage() {
             </div>
 
             {CRITERIA.map(c => (
-              <CriterionRow key={c.id} criterion={c} register={register} errors={errors} control={control} disabled={submitted} />
+              <CriterionRow key={c.id} criterion={c} register={register} errors={errors} control={control} disabled={submitted || !isSessionActive} />
             ))}
 
             {allCriteriaFilledAndValid && (
@@ -494,7 +631,7 @@ export default function EvaluationFormPage() {
               <div className="flex items-center justify-between">
                 <label className="text-[12px] font-bold text-gray-700">Kết luận chung & Kiến nghị <span className="text-red-500 ml-0.5">*</span></label>
               </div>
-              <textarea {...register('generalComment')} disabled={submitted} rows={5} placeholder="Nhập kết luận tổng thể về chất lượng đề tài..."
+              <textarea {...register('generalComment')} disabled={submitted || !isSessionActive} rows={5} placeholder="Nhập kết luận tổng thể về chất lượng đề tài..."
                 className={`w-full px-3.5 py-3 text-sm text-gray-800 placeholder-gray-400 rounded-lg outline-none resize-none transition border disabled:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed ${errors.generalComment ? 'border-red-500 ring-2 ring-red-500/10' : 'border-gray-200 focus:border-[#1a5ea8] focus:ring-2 focus:ring-[#1a5ea8]/10'}`} />
               {errors.generalComment && <p className="text-[11px] text-red-600 font-semibold">{errors.generalComment.message}</p>}
             </div>
@@ -509,7 +646,7 @@ export default function EvaluationFormPage() {
                   return (
                     <label key={opt.id} className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? `${opt.accent.border} ${opt.accent.bg}` : "border-gray-200 bg-white hover:border-gray-300"}`}>
                       <div className="flex items-center gap-3">
-                        <input type="radio" {...register('recommendedDecision')} value={opt.id} disabled={submitted} className="w-4 h-4 text-[#1a5ea8] border-gray-300 focus:ring-[#1a5ea8]" />
+                        <input type="radio" {...register('recommendedDecision')} value={opt.id} disabled={submitted || !isSessionActive} className="w-4 h-4 text-[#1a5ea8] border-gray-300 focus:ring-[#1a5ea8]" />
                         <div>
                           <p className={`text-[13px] font-bold ${isSelected ? opt.accent.text : "text-gray-700"}`}>{opt.title}</p>
                           <p className="text-[11px] text-gray-500">{opt.subtitle}</p>

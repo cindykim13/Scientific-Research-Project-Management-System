@@ -47,6 +47,12 @@ public class EvaluationServiceImpl implements EvaluationService {
         if (!member.getUser().getEmail().equalsIgnoreCase(actorEmail)) {
             throw new AccessDeniedException("Authenticated user cannot submit on behalf of another council member");
         }
+        if (member.getCouncilRole() == com.researchsystem.backend.domain.enums.CouncilRole.SECRETARY) {
+            throw new AccessDeniedException("Secretary is not allowed to submit evaluation forms.");
+        }
+        if (!topic.isSessionActive()) {
+            throw new IllegalStateException("Evaluation session has not been activated by secretary.");
+        }
 
         Optional<Evaluation> existing = evaluationRepository
                 .findByTopicTopicIdAndCouncilMemberCouncilMemberId(topic.getTopicId(), member.getCouncilMemberId());
@@ -96,6 +102,25 @@ public class EvaluationServiceImpl implements EvaluationService {
 
         Evaluation saved = evaluationRepository.save(evaluation);
         return toEvaluationResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<EvaluationResponse> getMyEvaluation(Long topicId, Long councilMemberId, String actorEmail) {
+        CouncilMember member = councilMemberRepository.findById(councilMemberId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Council member not found with id: " + councilMemberId));
+
+        if (!member.getUser().getEmail().equalsIgnoreCase(actorEmail)) {
+            throw new AccessDeniedException("Authenticated user does not own this council membership");
+        }
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + topicId));
+
+
+        return evaluationRepository
+                .findByTopicTopicIdAndCouncilMemberCouncilMemberId(topicId, councilMemberId)
+                .map(this::toEvaluationResponse);
     }
 
     private EvaluationResponse toEvaluationResponse(Evaluation eval) {

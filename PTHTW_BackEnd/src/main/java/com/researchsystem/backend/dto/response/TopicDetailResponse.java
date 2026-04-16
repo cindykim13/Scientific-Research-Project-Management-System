@@ -17,7 +17,6 @@ import java.util.List;
 @Builder
 public class TopicDetailResponse {
 
-    // --- Fields inherited from TopicListResponse ---
     private Long topicId;
     private String topicCode;
     private String titleVn;
@@ -25,9 +24,9 @@ public class TopicDetailResponse {
     private TopicStatus topicStatus;
     private BigDecimal expectedBudget;
     private String investigatorFullName;
+    private String investigatorEmail;
     private String managingDepartmentName;
 
-    // --- Additional scalar fields ---
     private ResearchType researchType;
     private String researchField;
     private String urgencyStatement;
@@ -42,8 +41,22 @@ public class TopicDetailResponse {
     private String trainingPlan;
     private String implementationPlan;
     private int durationMonths;
+    private int fileVersion;
     private LocalDateTime submissionDate;
+    private boolean isSessionActive;
 
-    // --- Audit history ---
     private List<AuditLogResponse> auditLogs;
+    private List<TopicMemberInfo> members;
+
+    // BỔ SUNG: Khôi phục danh sách tệp đính kèm để hiển thị trên UI
+    private List<AttachmentResponse> attachments;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class TopicMemberInfo {
+        private Long id;
+        private String memberName;
+    }
 }
