@@ -356,6 +356,12 @@ export default function EvaluationFormPage() {
           return;
         }
 
+        // Workspace Segregation: Chủ tịch có Phòng làm việc riêng (Split-Pane).
+        if (assignment.councilRole === 'PRESIDENT') {
+          navigate(`/council/topics/${topicId}/president`, { replace: true });
+          return;
+        }
+
         if (!EVALUATION_ROLES.has(assignment.councilRole)) {
           setForbidden(true);
           return;

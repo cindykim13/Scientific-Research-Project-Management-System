@@ -18,9 +18,15 @@ public class MinuteRequest {
 
     private String synthesizedComments;
 
-    @NotNull(message = "Final decision must not be null")
+    /**
+     * Optional on SECRETARY drafts (may be null or PENDING).
+     * Required only when PRESIDENT uses the legacy endpoint to approve.
+     */
     private FinalDecision finalDecision;
 
-    @NotNull(message = "Legal confirmation must not be null")
+    /**
+     * Optional on SECRETARY drafts; must be TRUE when PRESIDENT publishes
+     * via the legacy endpoint.
+     */
     private Boolean legalConfirmation;
 }

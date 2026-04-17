@@ -306,7 +306,20 @@ function TopicAction({ topic }) {
     );
   }
 
-  // Trường hợp đang trong phiên họp
+  // Phân tách workspace: Chủ tịch có không gian riêng; Thư ký dùng dashboard tracking.
+  if (councilRole === 'PRESIDENT') {
+    return (
+      <div className="flex items-center justify-center gap-2">
+        <Link
+          to={`/council/topics/${topicId}/president`}
+          className="inline-flex items-center justify-center gap-1.5 h-9 px-4 text-xs font-bold bg-red-600 text-white rounded-lg hover:bg-red-700 hover:shadow-md transition"
+        >
+          <IcVideo cls="w-3.5 h-3.5" />
+          Phòng làm việc Chủ tịch
+        </Link>
+      </div>
+    );
+  }
   if (councilRole === 'SECRETARY') {
     return (
       <div className="flex items-center justify-center gap-2">

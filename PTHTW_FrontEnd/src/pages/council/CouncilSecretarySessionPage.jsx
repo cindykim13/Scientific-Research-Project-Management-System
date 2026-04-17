@@ -57,7 +57,6 @@ export default function CouncilSecretarySessionPage() {
   const [remindedIds, setRemindedIds] = useState([]);
   const [topicCouncilRole, setTopicCouncilRole] = useState(null);
 
-  const [starting, setStarting] = useState(false);
   const [hasNotifiedReady, setHasNotifiedReady] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -79,6 +78,12 @@ export default function CouncilSecretarySessionPage() {
       
       const assignment = myTopicsList.find((t) => String(t.topicId) === String(topicId));
 
+      // Workspace Segregation: the President has a dedicated workspace.
+      // Only the Secretary may land on this tracking dashboard.
+      if (assignment?.councilRole === 'PRESIDENT') {
+        navigate(`/council/topics/${topicId}/president`, { replace: true });
+        return;
+      }
       if (!assignment || assignment.councilRole !== 'SECRETARY') {
         setForbidden(true);
         setLoading(false);
@@ -99,7 +104,7 @@ export default function CouncilSecretarySessionPage() {
     } finally {
       setLoading(false);
     }
-  }, [topicId]);
+  }, [topicId, navigate]);
 
   useEffect(() => {
     loadData();
@@ -115,8 +120,8 @@ export default function CouncilSecretarySessionPage() {
   
   const isSessionActive = topic?.isSessionActive || topic?.sessionActive; 
   const isReady = readiness?.ready === true;
-  const isMinutesCreated = topic?.topicStatus && !['PENDING_COUNCIL'].includes(topic.topicStatus);
-  
+  const isMinutesCreated = topic?.topicStatus && !['PENDING_COUNCIL', 'COUNCIL_REVIEWED'].includes(topic.topicStatus);
+
   const hasQuorum = useMemo(() => {
     if (!councilDetail?.members?.length) return false;
     const hasSecretary = councilDetail.members.some(m => m.councilRole === 'SECRETARY');
@@ -154,19 +159,6 @@ export default function CouncilSecretarySessionPage() {
       setHasNotifiedReady(true);
     }
   }, [isReady, hasNotifiedReady, isSessionActive, addToast]);
-
-  const handleStartSession = async () => {
-    setStarting(true);
-    try {
-      await councilsApi.startTopicSession(topicId);
-      addToast({ type: 'success', message: 'Phiên họp đã bắt đầu. Quyền truy cập Phiếu đánh giá đã được mở.' });
-      loadData(); // Tải lại dữ liệu để nhận cờ isSessionActive = true
-    } catch (err) {
-      addToast({ type: 'error', message: err.response?.data?.message || 'Không thể bắt đầu phiên họp.' });
-    } finally {
-      setStarting(false);
-    }
-  };
 
   const handleRemind = (id, name) => {
     setRemindedIds(prev => [...prev, id]);
@@ -466,14 +458,15 @@ export default function CouncilSecretarySessionPage() {
         <div className="flex items-center gap-3">
           {dashboardState === "NOT_STARTED" && (
             <div className="flex flex-col gap-1.5">
-              <div className={`flex items-center gap-2 border rounded-xl px-3.5 py-2 ${isTimeValid && hasQuorum ? "bg-indigo-50 border-indigo-200" : "bg-gray-50 border-gray-200"}`}>
-                <IcSession cls={`w-4 h-4 flex-shrink-0 ${isTimeValid && hasQuorum ? "text-indigo-600" : "text-gray-500"}`} />
-                <p className={`text-[12px] font-semibold ${isTimeValid && hasQuorum ? "text-indigo-700" : "text-gray-600"}`}>
-                  {isTimeValid && hasQuorum 
-                    ? "Tất cả đã sẵn sàng. Vui lòng bấm Bắt đầu phiên họp" 
-                    : "Cần Bắt đầu phiên họp trước khi thao tác các tác vụ khác"}
+              <div className="flex items-center gap-2 border rounded-xl px-3.5 py-2 bg-amber-50 border-amber-200">
+                <IcAlert cls="w-4 h-4 text-amber-500 flex-shrink-0" />
+                <p className="text-[12px] font-semibold text-amber-700">
+                  Đang chờ Chủ tịch Hội đồng bấm &ldquo;Bắt đầu phiên họp&rdquo;.
                 </p>
               </div>
+              <p className="text-[11px] text-gray-500 font-medium pl-1">
+                • Thư ký chỉ có quyền theo dõi và lập Biên bản sau khi đủ điều kiện.
+              </p>
               {(!isTimeValid || !hasQuorum) && (
                 <div className="flex flex-col pl-1">
                    {!isTimeValid && <p className="text-[11px] text-red-500 font-medium">• Chưa đến thời gian diễn ra phiên họp.</p>}
@@ -504,18 +497,10 @@ export default function CouncilSecretarySessionPage() {
 
         <div className="flex-shrink-0">
           {dashboardState === "NOT_STARTED" ? (
-             <button
-                onClick={handleStartSession}
-                disabled={starting || !isTimeValid || !hasQuorum}
-                className={`flex items-center gap-2 h-10 px-6 rounded-lg text-sm font-bold transition shadow-sm ${
-                  isTimeValid && hasQuorum
-                    ? "bg-indigo-600 hover:bg-indigo-700 text-white transform hover:-translate-y-0.5" 
-                    : "bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed"
-                }`}
-              >
-                {starting ? <IcLoader cls="w-4 h-4 animate-spin" /> : <IcPlay cls="w-4 h-4" />}
-                Bắt đầu phiên họp
-              </button>
+             <div className="flex items-center gap-2 h-10 px-6 rounded-lg text-sm font-bold bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed">
+                <IcPlay cls="w-4 h-4" />
+                Chờ Chủ tịch bắt đầu
+              </div>
           ) : dashboardState === "IN_PROGRESS" ? (
              <div className="flex items-center gap-2 h-10 px-6 rounded-lg text-sm font-bold bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-70">
                <IcDoc cls="w-4 h-4" /> Lập Biên bản Hội đồng

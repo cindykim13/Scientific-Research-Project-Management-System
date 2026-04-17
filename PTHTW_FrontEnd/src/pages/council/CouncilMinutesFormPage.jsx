@@ -187,6 +187,7 @@ export default function CouncilMinutesFormPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
+  const [hasDraftMinute, setHasDraftMinute] = useState(false);
   const [tab, setTab] = useState("thuyetminh");
   
   const pollRef = useRef(null);
@@ -202,7 +203,7 @@ export default function CouncilMinutesFormPage() {
   const decision = watch('finalDecision');
   const qaText = watch('qaExplanations');
 
-  const canPublish = minutesText.trim().length > 0 && decision !== null && !submitted;
+  const hasDecision = Boolean(decision && decision !== 'PENDING');
 
   // ── ABAC Guard & Init Load ──
   useEffect(() => {
@@ -214,6 +215,12 @@ export default function CouncilMinutesFormPage() {
         if (!assignment) {
           setForbidden(true);
           setLoading(false);
+          return;
+        }
+
+        // Workspace Segregation: Chủ tịch phê duyệt Biên bản trong Phòng làm việc riêng.
+        if (assignment.councilRole === 'PRESIDENT') {
+          navigate(`/council/topics/${topicId}/president`, { replace: true });
           return;
         }
 
@@ -233,12 +240,13 @@ export default function CouncilMinutesFormPage() {
            if (minRes.data) {
               setValue('synthesizedComments', minRes.data.synthesizedComments);
               setValue('qaExplanations', minRes.data.qaExplanations || '');
-              setValue('finalDecision', minRes.data.finalDecision);
+              setValue('finalDecision', minRes.data.finalDecision === 'PENDING' ? '' : minRes.data.finalDecision);
               setAverageScore(minRes.data.averageScore);
-              setSubmitted(true);
+              setHasDraftMinute(true);
+              setSubmitted(minRes.data.finalDecision && minRes.data.finalDecision !== 'PENDING');
            }
-        } catch (e) {
-           if (assignment.councilRole !== 'SECRETARY') {
+        } catch {
+           if (assignment.councilRole !== 'SECRETARY' && assignment.councilRole !== 'PRESIDENT') {
               setForbidden(true);
            }
         }
@@ -249,7 +257,7 @@ export default function CouncilMinutesFormPage() {
       }
     };
     verify();
-  }, [topicId, userId, setValue]);
+  }, [topicId, userId, setValue, navigate]);
 
   // ── Polling Readiness ──
   const fetchReadiness = useCallback(async () => {
@@ -293,19 +301,21 @@ export default function CouncilMinutesFormPage() {
         comments += '\n\n--- GIẢI TRÌNH CỦA CHỦ NHIỆM ---\n\n' + qaText;
       }
 
-      await minutesApi.submit({
+      // Workspace Segregation: Thư ký chỉ có quyền LƯU NHÁP biên bản.
+      // Phê duyệt/Công bố (kích hoạt FSM) thuộc quyền Chủ tịch tại Phòng làm việc riêng.
+      await minutesApi.draft({
         topicId: Number(topicId),
         synthesizedComments: comments,
-        finalDecision: decision,
-        legalConfirmation: true, // Appended here since modal handles it visually
+        finalDecision: null,
+        legalConfirmation: null,
       });
 
       setConfirmOpen(false);
-      setSubmitted(true);
-      setJustSubmitted(true);
+      setHasDraftMinute(true);
+      setJustSubmitted(true); // <-- Đã cập nhật dòng này để sửa lỗi ESLint
       addToast({
         type: 'success',
-        message: 'Biên bản Hội đồng đã được ghi nhận và công bố thành công!',
+        message: 'Đã lưu nháp biên bản và chuyển Chủ tịch phê duyệt.',
         duration: 4000,
       });
     } catch (err) {
@@ -332,6 +342,10 @@ export default function CouncilMinutesFormPage() {
 
   const isReady = readiness?.ready === true;
   const evaluations = readiness?.evaluations || [];
+  const isSecretary = topicCouncilRole === 'SECRETARY';
+  const isPresident = topicCouncilRole === 'PRESIDENT';
+  const canSaveDraft = isSecretary && isReady && minutesText.trim().length > 0 && !submitted;
+  const canApprove = isPresident && isReady && hasDraftMinute && minutesText.trim().length > 0 && hasDecision && !submitted;
 
   // Helper for scoring grade UI
   const getScoreGrade = (score) => {
@@ -345,7 +359,7 @@ export default function CouncilMinutesFormPage() {
   const pct = averageScore ? Math.round((averageScore / 100) * 100) : 0;
   const minScore = evaluations.length > 0 ? Math.min(...evaluations.map(e => e.totalScore || 0)) : 0;
   const maxScore = evaluations.length > 0 ? Math.max(...evaluations.map(e => e.totalScore || 0)) : 0;
-  const isReadOnly = topicCouncilRole !== 'SECRETARY' || submitted;
+  const isReadOnly = submitted || (!isSecretary && !isPresident);
 
   return (
     // Replaced h-screen w-screen with AppShell compatible wrapper
@@ -548,7 +562,7 @@ export default function CouncilMinutesFormPage() {
               </div>
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <p className="text-[12px] text-gray-500">Tổng hợp ý kiến từ Hội đồng. Bạn có thể trích xuất tự động nội dung phiếu.</p>
-                {!isReadOnly && (
+              {isSecretary && !submitted && (
                 <button type="button" onClick={handleAutoExtract} className="inline-flex items-center gap-2 h-8 px-4 rounded-lg border border-[#1a5ea8] text-[#1a5ea8] hover:bg-blue-50 text-xs font-bold transition">
                   <IcSparkle cls="w-3.5 h-3.5" /> Trích xuất tự động ({evaluations.length} phiếu)
                 </button>
@@ -628,9 +642,13 @@ export default function CouncilMinutesFormPage() {
                 <div className="flex items-center gap-2 text-[11.5px] text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
                   <IcCheck cls="w-3.5 h-3.5 flex-shrink-0 text-green-500" /> Biên bản đã được công bố chính thức
                 </div>
-              ) : (!canPublish) && (
+              ) : isPresident && !hasDraftMinute ? (
+                <div className="flex items-center gap-2 text-[11.5px] text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
+                  <IcInfo cls="w-3.5 h-3.5 flex-shrink-0 text-indigo-500" /> Chờ Thư ký nộp nháp biên bản để phê duyệt
+                </div>
+              ) : ((isSecretary && !canSaveDraft) || (isPresident && !canApprove)) && (
                 <div className="flex items-center gap-2 text-[11.5px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  <IcInfo cls="w-3.5 h-3.5 flex-shrink-0 text-amber-500" /> Vui lòng nhập đủ nội dung và kết luận
+                  <IcInfo cls="w-3.5 h-3.5 flex-shrink-0 text-amber-500" /> Vui lòng nhập đủ nội dung cần thiết trước khi tiếp tục
                 </div>
               )}
             </div>
@@ -638,9 +656,13 @@ export default function CouncilMinutesFormPage() {
               <button disabled={submitting} onClick={() => navigate('/council/dashboard')} className="h-10 px-5 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition">
                 {isReadOnly ? "Quay lại" : "Hủy bỏ"}
               </button>
-              {!isReadOnly && (
-                <button disabled={!isReady || !canPublish || submitting || !isValid} onClick={() => setConfirmOpen(true)} className={`flex items-center gap-2 h-10 px-6 rounded-lg text-sm font-bold transition ${isReady && canPublish && isValid && !submitting ? "bg-[#1a5ea8] hover:bg-[#15306a] text-white shadow-sm" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
-                  <IcPublish cls="w-4 h-4" /> Lưu & Công bố Biên bản
+              {(isSecretary || isPresident) && !submitted && (
+                <button
+                  disabled={submitting || (isSecretary ? !canSaveDraft : !canApprove) || !isValid}
+                  onClick={() => setConfirmOpen(true)}
+                  className={`flex items-center gap-2 h-10 px-6 rounded-lg text-sm font-bold transition ${(isSecretary ? canSaveDraft : canApprove) && isValid && !submitting ? "bg-[#1a5ea8] hover:bg-[#15306a] text-white shadow-sm" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}
+                >
+                  <IcPublish cls="w-4 h-4" /> {isSecretary ? "Lưu nháp biên bản" : "Phê duyệt & Công bố"}
                 </button>
               )}
             </div>

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import { ROLE_DASHBOARD } from '../utils/postLoginNavigation';
@@ -49,6 +50,7 @@ import CouncilMemberDashboardPage from '../pages/council/CouncilMemberDashboardP
 import EvaluationFormPage from '../pages/council/EvaluationFormPage';
 import CouncilMinutesFormPage from '../pages/council/CouncilMinutesFormPage';
 import CouncilSecretarySessionPage from '../pages/council/CouncilSecretarySessionPage';
+import PresidentWorkspacePage from '../pages/council/PresidentWorkspacePage';
 
 // ── ADMIN ─────────────────────────────────────────────────────────────────────
 import AdminDashboardPage from '../pages/admin/AdminDashboardPage';
@@ -60,9 +62,9 @@ import CreateUserPage from '../pages/admin/CreateUserPage';
  * RootRedirect — Contextual index route handler.
  *
  * Resolves the `/` path based on authentication state and role:
- *   - Unauthenticated → /login
- *   - firstLogin === true → /change-password
- *   - Authenticated → role-appropriate dashboard
+ * - Unauthenticated → /login
+ * - firstLogin === true → /change-password
+ * - Authenticated → role-appropriate dashboard
  *
  * This component is rendered inside AppShell (layout route) and
  * does NOT require an additional PrivateRoute wrapper because it
@@ -83,17 +85,17 @@ function RootRedirect() {
  * router — Central React Router v7 browser router.
  *
  * Architecture: Pathless layout route pattern.
- *   - AppShell renders Sidebar + TopBar + <Outlet /> for all authenticated routes.
- *   - PrivateRoute is used as a pathless route element to group routes by role.
- *   - Public routes (login, forgot/reset password, error pages) bypass AppShell.
+ * - AppShell renders Sidebar + TopBar + <Outlet /> for all authenticated routes.
+ * - PrivateRoute is used as a pathless route element to group routes by role.
+ * - Public routes (login, forgot/reset password, error pages) bypass AppShell.
  *
  * Route count: 36 client-side routes as mandated in the Audit Report § Part 1.
  *
  * Guard layers (all authenticated routes):
- *   Layer 1 — Token check (PrivateRoute): unauthenticated → /login
- *   Layer 2 — firstLogin check (PrivateRoute): firstLogin → /change-password
- *              [Exception: /change-password uses skipFirstLoginCheck]
- *   Layer 3 — RBAC (PrivateRoute.allowedRoles): role mismatch → <ForbiddenPage />
+ * Layer 1 — Token check (PrivateRoute): unauthenticated → /login
+ * Layer 2 — firstLogin check (PrivateRoute): firstLogin → /change-password
+ * [Exception: /change-password uses skipFirstLoginCheck]
+ * Layer 3 — RBAC (PrivateRoute.allowedRoles): role mismatch → <ForbiddenPage />
  */
 const router = createBrowserRouter([
 
@@ -212,6 +214,7 @@ const router = createBrowserRouter([
         children: [
           { path: '/council/dashboard', element: <CouncilMemberDashboardPage /> },
           { path: '/council/topics/:topicId/session', element: <CouncilSecretarySessionPage /> },
+          { path: '/council/topics/:topicId/president', element: <PresidentWorkspacePage /> },
           { path: '/council/topics/:topicId/evaluate', element: <EvaluationFormPage /> },
           { path: '/council/topics/:topicId/minute', element: <CouncilMinutesFormPage /> },
         ],
