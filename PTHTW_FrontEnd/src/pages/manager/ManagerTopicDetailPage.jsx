@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import * as RadioGroup from '@radix-ui/react-radio-group';
 import { Worker, Viewer } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 import '@react-pdf-viewer/core/lib/styles/index.css';
@@ -11,6 +12,7 @@ import { councilsApi } from '../../api/councils.api';
 import { usersApi } from '../../api/users.api';
 import useUiStore from '../../store/uiStore';
 import LoadingSpinner from '../../components/ui/LoadingSpinner';
+import RichTextDisplay from '../../components/ui/RichTextDisplay';
 import { formatVND, formatDateTime } from '../../utils/formatters';
 import FocusTrappedModal from '../../components/ui/FocusTrappedModal';
 
@@ -27,6 +29,40 @@ const IcAlert = p => <Svg {...p} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 
 const IcPlus = p => <Svg {...p} d="M12 4v16m8-8H4" />;
 const IcUsers = p => <Svg {...p} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />;
 
+const SCIENCE_SECTIONS = [
+  { key: 'urgencyStatement', label: 'Tính cấp thiết' },
+  { key: 'generalObjective', label: 'Mục tiêu tổng quát' },
+  { key: 'specificObjectives', label: 'Mục tiêu cụ thể' },
+  { key: 'researchMethods', label: 'Phương pháp nghiên cứu' },
+  { key: 'researchScope', label: 'Phạm vi nghiên cứu' },
+  { key: 'expectedProducts', label: 'Sản phẩm dự kiến' },
+  { key: 'expectedImpacts', label: 'Hiệu quả kỳ vọng' },
+];
+
+const LeftPaneMetadataView = ({ topic }) => (
+  <div className="h-full overflow-y-auto bg-gray-50 p-4 space-y-4">
+    <div className="rounded-xl border border-indigo-100 bg-white p-4">
+      <p className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider">Mã đề tài</p>
+      <p className="text-sm font-bold text-[#1a5ea8] mt-1">{topic?.topicCode || '—'}</p>
+      <p className="text-[13px] font-bold text-gray-900 mt-2">{topic?.titleVn || '—'}</p>
+      {topic?.titleEn && <p className="text-xs text-gray-500 mt-1">{topic.titleEn}</p>}
+    </div>
+
+    {SCIENCE_SECTIONS.map((section) => (
+      topic?.[section.key] ? (
+        <section key={section.key} className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
+            <p className="text-[11px] font-bold text-gray-700">{section.label}</p>
+          </div>
+          <div className="px-4 py-3 prose prose-sm max-w-none">
+            <RichTextDisplay html={topic[section.key]} />
+          </div>
+        </section>
+      ) : null
+    ))}
+  </div>
+);
+
 export default function ManagerTopicDetailPage() {
   const { topicId } = useParams();
   const navigate = useNavigate();
@@ -42,11 +78,13 @@ export default function ManagerTopicDetailPage() {
   const [isProcedureValid, setIsProcedureValid] = useState(false);
   const [assignMode, setAssignMode] = useState('EXISTING'); 
   const [selectedCouncil, setSelectedCouncil] = useState('');
+  const [leftPaneMode, setLeftPaneMode] = useState('PDF');
 
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
   const { register: regReject, handleSubmit: handleRejectSubmit, watch: watchReject, formState: { errors: errReject } } = useForm();
   const { register: regCouncil, handleSubmit: handleCreateCouncilSubmit } = useForm();
   const feedbackMessage = watchReject('feedbackMessage');
+  const todayStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     let objectUrl;
@@ -131,6 +169,12 @@ export default function ManagerTopicDetailPage() {
 
   // CẬP NHẬT: TÍCH HỢP GIAO DỊCH PHỨC HỢP (CREATE AND ASSIGN)
   const handleCreateAndAssign = async (data) => {
+    const scheduledAt = new Date(`${data.meetingDate}T${data.meetingTime}`);
+    if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() < Date.now()) {
+      addToast({ type: 'error', message: 'Ngày/giờ họp phải từ thời điểm hiện tại trở đi.' });
+      return;
+    }
+
     const memberAssignments = [
         { userId: Number(data.pId), councilRole: 'PRESIDENT' },
         { userId: Number(data.sId), councilRole: 'SECRETARY' },
@@ -206,19 +250,41 @@ export default function ManagerTopicDetailPage() {
       {/* SPLIT PANE */}
       <div className="flex flex-1 min-h-0 bg-gray-50">
         
-        {/* LEFT: PDF VIEWER */}
+        {/* LEFT: PDF + SCIENTIFIC CONTEXT */}
         <div className="flex flex-col w-[60%] border-r border-gray-300 shadow-lg z-10">
-          <div className="px-4 py-2 bg-gray-200 border-b border-gray-300 flex items-center gap-2 text-xs font-bold text-gray-600">
-            <IcDoc cls="text-red-500 w-4 h-4"/> Tệp Thuyết minh Nghiên cứu
+          <div className="px-4 py-2 bg-gray-200 border-b border-gray-300 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+              <IcDoc cls="text-red-500 w-4 h-4"/>
+              {leftPaneMode === 'PDF' ? 'Tệp Thuyết minh Nghiên cứu' : 'Nội dung khoa học do Chủ nhiệm kê khai'}
+            </div>
+            <RadioGroup.Root
+              value={leftPaneMode}
+              onValueChange={setLeftPaneMode}
+              className="inline-flex items-center rounded-lg border border-gray-300 bg-white p-1"
+              aria-label="Chế độ xem hồ sơ"
+            >
+              <RadioGroup.Item
+                value="PDF"
+                className="h-7 px-2.5 rounded-md text-[11px] font-bold text-gray-600 data-[state=checked]:bg-[#1a5ea8] data-[state=checked]:text-white"
+              >
+                PDF
+              </RadioGroup.Item>
+              <RadioGroup.Item
+                value="DETAIL"
+                className="h-7 px-2.5 rounded-md text-[11px] font-bold text-gray-600 data-[state=checked]:bg-[#1a5ea8] data-[state=checked]:text-white"
+              >
+                Nội dung
+              </RadioGroup.Item>
+            </RadioGroup.Root>
           </div>
           <div className="flex-1 overflow-auto bg-[#E0E0E0]">
-            {pdfUrl ? (
+            {leftPaneMode === 'PDF' ? (pdfUrl ? (
               <Worker workerUrl={`https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`}>
                 <Viewer fileUrl={pdfUrl} plugins={[defaultLayoutPluginInstance]} />
               </Worker>
             ) : (
               <div className="flex items-center justify-center h-full text-sm text-gray-500 font-medium">Không tìm thấy tệp đính kèm.</div>
-            )}
+            )) : <LeftPaneMetadataView topic={topic} />}
           </div>
         </div>
 
@@ -302,7 +368,7 @@ export default function ManagerTopicDetailPage() {
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[11px] font-bold text-indigo-800 uppercase mb-1">Ngày họp *</label>
-                          <input type="date" {...regCouncil('meetingDate', {required:true})} className="w-full h-9 border border-indigo-200 rounded px-2 text-sm"/>
+                          <input type="date" min={todayStr} {...regCouncil('meetingDate', {required:true})} className="w-full h-9 border border-indigo-200 rounded px-2 text-sm"/>
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold text-indigo-800 uppercase mb-1">Giờ họp *</label>

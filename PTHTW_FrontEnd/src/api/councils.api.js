@@ -16,7 +16,7 @@ export const councilsApi = {
   // Gọi trực tiếp API với size lớn và bóc tách mảng content an toàn
   fetchAllCouncils: async () => {
     try {
-      const response = await axiosInstance.get('/api/v1/councils', { 
+      const response = await axiosInstance.get('/api/v1/councils/available', {
         params: { page: 0, size: 1000, sort: 'councilId,desc' } 
       });
       // Đảm bảo luôn trả về 1 mảng (Array)

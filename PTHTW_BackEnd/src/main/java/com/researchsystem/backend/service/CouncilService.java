@@ -33,6 +33,11 @@ public interface CouncilService {
     Page<CouncilListResponse> getAllCouncils(Pageable pageable);
 
     /**
+     * Returns councils that are still valid for assignment (meeting time not passed).
+     */
+    Page<CouncilListResponse> getAvailableCouncils(Pageable pageable);
+
+    /**
      * Returns the full detail view of a council, including its members and assigned topics.
      *
      * @throws jakarta.persistence.EntityNotFoundException if the council does not exist

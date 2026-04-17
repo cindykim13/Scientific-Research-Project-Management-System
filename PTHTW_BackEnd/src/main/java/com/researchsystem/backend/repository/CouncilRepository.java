@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Optional;
 
 /**
@@ -34,6 +36,15 @@ public interface CouncilRepository extends JpaRepository<Council, Long> {
      */
     @Query("SELECT c FROM Council c ORDER BY c.councilId DESC")
     Page<Council> findAllCouncils(Pageable pageable);
+
+    @Query("""
+            SELECT c
+            FROM Council c
+            WHERE c.meetingDate > :currentDate
+               OR (c.meetingDate = :currentDate AND c.meetingTime >= :currentTime)
+            ORDER BY c.councilId DESC
+            """)
+    Page<Council> findAvailableCouncils(LocalDate currentDate, LocalTime currentTime, Pageable pageable);
 
     /**
      * Detail view — fetches council members and their user profiles in one shot.

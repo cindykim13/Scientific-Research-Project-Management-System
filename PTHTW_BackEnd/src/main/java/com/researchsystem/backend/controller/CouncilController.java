@@ -99,6 +99,22 @@ public class CouncilController {
         return ResponseEntity.ok(councilService.getAllCouncils(pageable));
     }
 
+    @GetMapping("/available")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    @Operation(
+            summary = "List councils available for new topic assignment",
+            description = "Returns councils whose scheduled datetime has not passed yet."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Available councils returned successfully"),
+            @ApiResponse(responseCode = "400", description = "Bad Request — invalid pagination parameters"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — MANAGER or ADMIN role required")
+    })
+    public ResponseEntity<Page<CouncilListResponse>> getAvailableCouncils(
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
+        return ResponseEntity.ok(councilService.getAvailableCouncils(pageable));
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN', 'COUNCIL')")
     @Operation(

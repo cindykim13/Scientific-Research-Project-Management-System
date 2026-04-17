@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
+import * as RadioGroup from '@radix-ui/react-radio-group';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 
@@ -301,6 +302,7 @@ export default function EvaluationFormPage() {
   const [topic, setTopic] = useState(null);
   const [pdfUrl, setPdfUrl] = useState(null);
   const [activeAttachmentName, setActiveAttachmentName] = useState('Tài liệu đính kèm');
+  const [leftPaneMode, setLeftPaneMode] = useState('PDF');
   const [councilMemberId, setCouncilMemberId] = useState(null);
   const [assignmentRole, setAssignmentRole] = useState(null);
   
@@ -548,21 +550,43 @@ export default function EvaluationFormPage() {
 
         {/* ────────────────────── Left Panel: Document Viewer (55%) ────────────────────── */}
         <div className="flex flex-col bg-[#E0E0E0] border-r border-gray-300 z-10 shadow-lg" style={{ width: "55%" }}>
-          <div className="flex items-center px-4 py-2.5 bg-[#f5f5f5] border-b border-gray-300 flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-[#f5f5f5] border-b border-gray-300 flex-shrink-0 gap-3">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-white shadow-sm text-gray-800 border border-gray-200">
-              <IcDoc cls="w-3.5 h-3.5 text-red-500" /> {activeAttachmentName}
+              <IcDoc cls="w-3.5 h-3.5 text-red-500" />
+              {leftPaneMode === 'PDF' ? activeAttachmentName : 'Nội dung khoa học đăng ký'}
             </div>
+            <RadioGroup.Root
+              value={leftPaneMode}
+              onValueChange={setLeftPaneMode}
+              className="inline-flex items-center rounded-lg border border-gray-300 bg-white p-1"
+              aria-label="Chế độ xem hồ sơ"
+            >
+              <RadioGroup.Item
+                value="PDF"
+                className="h-7 px-2.5 rounded-md text-[11px] font-bold text-gray-600 data-[state=checked]:bg-[#1a5ea8] data-[state=checked]:text-white"
+              >
+                PDF
+              </RadioGroup.Item>
+              <RadioGroup.Item
+                value="DETAIL"
+                className="h-7 px-2.5 rounded-md text-[11px] font-bold text-gray-600 data-[state=checked]:bg-[#1a5ea8] data-[state=checked]:text-white"
+              >
+                Nội dung
+              </RadioGroup.Item>
+            </RadioGroup.Root>
           </div>
           <div className="flex-1 overflow-auto flex items-start justify-center">
-            {pdfUrl ? (
+            {leftPaneMode === 'PDF' ? (pdfUrl ? (
               <div className="w-full h-full">
                 <Worker workerUrl={`https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`}>
                   <Viewer fileUrl={pdfUrl} plugins={[defaultLayoutPluginInstance]} />
                 </Worker>
               </div>
             ) : (
-              <TopicContextFallback topic={topic} />
-            )}
+              <div className="flex items-center justify-center h-full w-full text-sm text-gray-500 font-medium italic">
+                Không tìm thấy tệp PDF đính kèm.
+              </div>
+            )) : <TopicContextFallback topic={topic} />}
           </div>
         </div>
 

@@ -1,5 +1,6 @@
 package com.researchsystem.backend.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.researchsystem.backend.domain.enums.SystemRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -36,4 +37,7 @@ public class RegisterTestRequest {
 
     @NotNull(message = "System role must not be null")
     private SystemRole systemRole;
+
+    @JsonProperty("department_id")
+    private Long departmentId;
 }

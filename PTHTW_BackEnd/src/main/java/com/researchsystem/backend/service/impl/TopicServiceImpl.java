@@ -96,7 +96,7 @@ public class TopicServiceImpl implements TopicService {
         VALID_TRANSITIONS.put(TopicStatus.DEPT_APPROVED,
                 EnumSet.of(TopicStatus.PENDING_COUNCIL, TopicStatus.REVISION_REQUIRED));
         VALID_TRANSITIONS.put(TopicStatus.DEPT_REJECTED,
-                EnumSet.of(TopicStatus.DRAFT));
+                EnumSet.of(TopicStatus.DRAFT, TopicStatus.PENDING_REVIEW));
         VALID_TRANSITIONS.put(TopicStatus.PENDING_COUNCIL,
                 EnumSet.of(TopicStatus.COUNCIL_REVIEWED));
         VALID_TRANSITIONS.put(TopicStatus.COUNCIL_REVIEWED,
@@ -189,100 +189,15 @@ public class TopicServiceImpl implements TopicService {
         auditLogService.recordLog(topicId, currentStatus, targetStatus,
                 request.getFeedbackMessage(), actorEmail);
 
+        // Update Entity
         topic.setTopicStatus(targetStatus);
         Topic saved = topicRepository.save(topic);
-
-        // ==============================================================================
-        // BỔ SUNG LOGIC 1: THÔNG BÁO KHI TRƯỞNG KHOA XỬ LÝ HỒ SƠ (DEPT_APPROVED / DEPT_REJECTED)
-        // ==============================================================================
-        if (actor.getSystemRole() == SystemRole.DEPT_HEAD) {
-            if (targetStatus == TopicStatus.DEPT_APPROVED) {
-                // 1. Thông báo cho chính Trưởng khoa (Lưu vết lịch sử hộp thoại)
-                notificationRepository.save(Notification.builder()
-                        .recipient(actor)
-                        .notificationType("TOPIC_APPROVED_DEPT")
-                        .title("Đã phê duyệt đề tài")
-                        .body("Ngài đã phê duyệt thành công đề tài mã số: " + topic.getTopicCode())
-                        .resourceType("TOPIC")
-                        .resourceId(topicId)
-                        .build());
-
-                // 2. Thông báo cho Chủ nhiệm
-                notificationRepository.save(Notification.builder()
-                        .recipient(topic.getInvestigator())
-                        .notificationType("TOPIC_APPROVED_DEPT")
-                        .title("Đề tài đã được Khoa phê duyệt")
-                        .body("Đề tài " + topic.getTopicCode() + " đã được Khoa thông qua và chuyển lên Phòng QLKH.")
-                        .resourceType("TOPIC")
-                        .resourceId(topicId)
-                        .build());
-            } else if (targetStatus == TopicStatus.DEPT_REJECTED) {
-                // 1. Thông báo cho chính Trưởng khoa
-                notificationRepository.save(Notification.builder()
-                        .recipient(actor)
-                        .notificationType("TOPIC_REJECTED_DEPT")
-                        .title("Đã trả hồ sơ đề tài")
-                        .body("Ngài đã yêu cầu chỉnh sửa đề tài mã số: " + topic.getTopicCode())
-                        .resourceType("TOPIC")
-                        .resourceId(topicId)
-                        .build());
-
-                // 2. Thông báo cho Chủ nhiệm
-                notificationRepository.save(Notification.builder()
-                        .recipient(topic.getInvestigator())
-                        .notificationType("TOPIC_REJECTED_DEPT")
-                        .title("Đề tài cần chỉnh sửa cấp Khoa")
-                        .body("Đề tài " + topic.getTopicCode() + " bị Khoa yêu cầu chỉnh sửa. Lý do: " + request.getFeedbackMessage())
-                        .resourceType("TOPIC")
-                        .resourceId(topicId)
-                        .build());
-            }
-        }
-
-        // ==============================================================================
-        // BỔ SUNG LOGIC 2: THÔNG BÁO KHI PHÒNG QLKH TRẢ HỒ SƠ VỀ (REVISION_REQUIRED)
-        // ==============================================================================
-        if (targetStatus == TopicStatus.REVISION_REQUIRED && actor.getSystemRole() == SystemRole.MANAGER) {
-            // 1. Gửi thông báo cho Chủ nhiệm
-            Notification invNotif = Notification.builder()
-                    .recipient(topic.getInvestigator())
-                    .notificationType("TOPIC_REVISION")
-                    .title("Yêu cầu bổ sung thủ tục đề tài")
-                    .body("Phòng QLKH yêu cầu bổ sung đề tài: " + topic.getTitleVn() + ". Lý do: " + request.getFeedbackMessage())
-                    .resourceType("TOPIC")
-                    .resourceId(topicId)
-                    .build();
-            notificationRepository.save(invNotif);
-
-            log.info("=================================================================");
-            log.info("[SMTP MOCK] Email to Investigator ({}): Đề tài {} cần bổ sung thủ tục.", 
-                    topic.getInvestigator().getEmail(), topic.getTopicCode());
-            log.info("Lý do: {}", request.getFeedbackMessage());
-            log.info("=================================================================");
-
-            // 2. Gửi thông báo cho Phụ trách Khoa liên quan
-            List<User> deptHeads = userRepository.findByDepartmentDepartmentIdAndSystemRole(
-                    topic.getManagingDepartment().getDepartmentId(), SystemRole.DEPT_HEAD);
-            
-            for (User head : deptHeads) {
-                Notification headNotif = Notification.builder()
-                        .recipient(head)
-                        .notificationType("TOPIC_REVISION_DEPT")
-                        .title("Đề tài của Khoa bị trả về")
-                        .body("Đề tài " + topic.getTopicCode() + " bị Phòng QLKH trả về. Lý do: " + request.getFeedbackMessage())
-                        .resourceType("TOPIC")
-                        .resourceId(topicId)
-                        .build();
-                notificationRepository.save(headNotif);
-                
-                log.info("=================================================================");
-                log.info("[SMTP MOCK] Email to Dept Head ({}): Đề tài {} của khoa bị trả về.", 
-                        head.getEmail(), topic.getTopicCode());
-                log.info("=================================================================");
-            }
-        }
-
-        eventPublisher.publishEvent(new TopicStatusChangedEvent(topicId, targetStatus, actorEmail));
+        
+        // --- ARCHITECTURAL FIX: Publish Rich Domain Event ---
+        // The NotificationEventListener will asynchronously catch this and handle translations
+        eventPublisher.publishEvent(new TopicStatusChangedEvent(
+                this, saved, currentStatus, targetStatus, actor, request.getFeedbackMessage()
+        ));
 
         return topicMapper.toDetailResponse(saved);
     }
@@ -341,9 +256,11 @@ public class TopicServiceImpl implements TopicService {
         Topic topic = topicRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Topic not found with id: " + id));
 
-        if (topic.getTopicStatus() != TopicStatus.DRAFT) {
+        if (topic.getTopicStatus() != TopicStatus.DRAFT && 
+            topic.getTopicStatus() != TopicStatus.DEPT_REJECTED && 
+            topic.getTopicStatus() != TopicStatus.REVISION_REQUIRED) {
             throw new IllegalStateException(
-                    "Only DRAFT topics can be edited. Current status: " + topic.getTopicStatus());
+                    "Only DRAFT, DEPT_REJECTED, or REVISION_REQUIRED topics can be edited. Current status: " + topic.getTopicStatus());
         }
 
         if (!actorEmail.equals(topic.getInvestigator().getEmail())) {
@@ -583,8 +500,7 @@ public class TopicServiceImpl implements TopicService {
         else if (from == TopicStatus.DEPT_APPROVED && 
                 (to == TopicStatus.PENDING_COUNCIL || to == TopicStatus.REVISION_REQUIRED)) {
             allowed = actor.getSystemRole() == SystemRole.MANAGER;
-        } 
-        else if (from == TopicStatus.DEPT_REJECTED && to == TopicStatus.DRAFT) {
+        } else if (from == TopicStatus.DEPT_REJECTED && (to == TopicStatus.DRAFT || to == TopicStatus.PENDING_REVIEW)) {
             allowed = actor.getSystemRole() == SystemRole.RESEARCHER && investigatorMatches(actor, topic);
         } else if (from == TopicStatus.PENDING_COUNCIL && to == TopicStatus.COUNCIL_REVIEWED) {
             allowed = actor.getSystemRole() == SystemRole.MANAGER;

@@ -1,5 +1,6 @@
 package com.researchsystem.backend.service.impl;
 
+import com.researchsystem.backend.domain.entity.Department;
 import com.researchsystem.backend.domain.entity.PasswordResetToken;
 import com.researchsystem.backend.domain.entity.RefreshToken;
 import com.researchsystem.backend.domain.entity.User;
@@ -12,6 +13,7 @@ import com.researchsystem.backend.dto.request.UpdatePasswordRequest;
 import com.researchsystem.backend.dto.request.UpdateProfileRequest;
 import com.researchsystem.backend.dto.response.AuthResponse;
 import com.researchsystem.backend.dto.response.UserResponse;
+import com.researchsystem.backend.repository.DepartmentRepository;
 import com.researchsystem.backend.repository.NotificationRepository;
 import com.researchsystem.backend.repository.PasswordResetTokenRepository;
 import com.researchsystem.backend.repository.RefreshTokenRepository;
@@ -55,6 +57,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final CustomUserDetailsService customUserDetailsService;
     private final NotificationRepository notificationRepository;
+    private final DepartmentRepository departmentRepository;
 
     @Value("${app.jwt.refresh-expiration:604800000}")
     private long refreshExpirationMs;
@@ -152,11 +155,18 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("Email already in use: " + request.getEmail());
         }
 
+        Department department = null;
+        if (request.getDepartmentId() != null) {
+            department = departmentRepository.findById(request.getDepartmentId())
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy khoa với ID: " + request.getDepartmentId()));
+        }
+
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .systemRole(request.getSystemRole())
+                .department(department)
                 .isFirstLogin(false)
                 .active(true)
                 .build();

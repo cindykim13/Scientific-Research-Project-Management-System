@@ -117,6 +117,8 @@ public class CouncilServiceImpl implements CouncilService {
     @Transactional
     public CouncilDetailResponse createAndAssign(CouncilCreationWithAssignmentRequest request, String actorEmail) {
         CouncilCreateRequest councilInfo = request.getCouncilInfo();
+        validateMeetingSchedule(councilInfo.getMeetingDate(), councilInfo.getMeetingTime());
+
         Council newCouncil = Council.builder()
                 .councilName(councilInfo.getCouncilName())
                 .meetingDate(councilInfo.getMeetingDate())
@@ -257,6 +259,13 @@ public class CouncilServiceImpl implements CouncilService {
     public void assignTopics(Long councilId, AssignTopicsRequest request, String actorEmail) {
         Council council = councilRepository.findById(councilId)
                 .orElseThrow(() -> new EntityNotFoundException("Council not found with id: " + councilId));
+
+        if (isCouncilExpired(council, LocalDateTime.now())) {
+            throw new IllegalStateException("Cannot assign topics to an expired council session.");
+        }
+
+        User actor = userRepository.findByEmail(actorEmail)
+                .orElseThrow(() -> new EntityNotFoundException("Actor not found: " + actorEmail));
 
         for (Long topicId : request.getTopicIds()) {
             Topic topic = topicRepository.findById(topicId)
@@ -400,7 +409,7 @@ public class CouncilServiceImpl implements CouncilService {
             }
 
             eventPublisher.publishEvent(
-                    new TopicStatusChangedEvent(topicId, TopicStatus.PENDING_COUNCIL, actorEmail)
+                    new TopicStatusChangedEvent(this, topic, TopicStatus.DEPT_APPROVED, TopicStatus.PENDING_COUNCIL, actor, null)
             );
         }
     }
@@ -463,6 +472,8 @@ public class CouncilServiceImpl implements CouncilService {
 
     @Override
     public CouncilDetailResponse createCouncil(CouncilCreateRequest request) {
+        validateMeetingSchedule(request.getMeetingDate(), request.getMeetingTime());
+
         Council council = Council.builder()
                 .councilName(request.getCouncilName())
                 .meetingDate(request.getMeetingDate())
@@ -478,6 +489,15 @@ public class CouncilServiceImpl implements CouncilService {
     @Transactional(readOnly = true)
     public Page<CouncilListResponse> getAllCouncils(Pageable pageable) {
         return councilRepository.findAllCouncils(pageable).map(this::toListResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CouncilListResponse> getAvailableCouncils(Pageable pageable) {
+        LocalDateTime now = LocalDateTime.now();
+        return councilRepository
+                .findAvailableCouncils(now.toLocalDate(), now.toLocalTime(), pageable)
+                .map(this::toListResponse);
     }
 
     @Override
@@ -607,5 +627,24 @@ public class CouncilServiceImpl implements CouncilService {
                 .members(memberInfos)
                 .topics(topicResponses)
                 .build();
+    }
+
+    private void validateMeetingSchedule(java.time.LocalDate meetingDate, java.time.LocalTime meetingTime) {
+        if (meetingDate == null || meetingTime == null) {
+            throw new IllegalArgumentException("Meeting date and time must be provided.");
+        }
+
+        LocalDateTime scheduledAt = LocalDateTime.of(meetingDate, meetingTime);
+        if (scheduledAt.isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Council meeting datetime must be in the present or future.");
+        }
+    }
+
+    private boolean isCouncilExpired(Council council, LocalDateTime referenceTime) {
+        if (council.getMeetingDate() == null || council.getMeetingTime() == null) {
+            return false;
+        }
+        LocalDateTime meetingDateTime = LocalDateTime.of(council.getMeetingDate(), council.getMeetingTime());
+        return meetingDateTime.isBefore(referenceTime);
     }
 }
