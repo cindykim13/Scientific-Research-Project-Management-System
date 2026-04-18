@@ -248,14 +248,14 @@ public class CouncilController {
     @PostMapping("/topics/{topicId}/session/start")
     @PreAuthorize("hasRole('COUNCIL')")
     @Operation(
-            summary = "Secretary starts the meeting session for a topic",
-            description = "Only the secretary assigned to the topic's council can activate the session. " +
+            summary = "President starts the meeting session for a topic",
+            description = "Only the president assigned to the topic's council can activate the session. " +
                           "Session activation unlocks evaluation submission for non-secretary members."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Session started successfully"),
             @ApiResponse(responseCode = "400", description = "Bad Request — schedule/quorum guard not satisfied"),
-            @ApiResponse(responseCode = "403", description = "Forbidden — only secretary of assigned council can start"),
+            @ApiResponse(responseCode = "403", description = "Forbidden — only president of assigned council can start"),
             @ApiResponse(responseCode = "404", description = "Topic not found")
     })
     public ResponseEntity<Void> startTopicSession(

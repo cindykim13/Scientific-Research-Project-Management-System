@@ -75,13 +75,13 @@ public class CouncilServiceImpl implements CouncilService {
             throw new IllegalStateException("Đề tài chưa được gán cho hội đồng nào.");
         }
 
-        // Xác thực quyền: Chỉ Thư ký của hội đồng được gán mới có quyền bắt đầu phiên
+        // Xác thực quyền: Chỉ Chủ tịch của hội đồng được gán mới có quyền bắt đầu phiên
         CouncilMember membership = councilMemberRepository
                 .findByCouncilCouncilIdAndUserEmail(topic.getAssignedCouncil().getCouncilId(), actorEmail)
                 .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("Bạn không thuộc hội đồng này."));
 
-        if (membership.getCouncilRole() != CouncilRole.SECRETARY) {
-            throw new org.springframework.security.access.AccessDeniedException("Chỉ Thư ký mới có quyền bắt đầu phiên họp.");
+        if (membership.getCouncilRole() != CouncilRole.PRESIDENT) {
+            throw new org.springframework.security.access.AccessDeniedException("Chỉ Chủ tịch mới có quyền bắt đầu phiên họp.");
         }
 
         if (topic.isSessionActive()) {
