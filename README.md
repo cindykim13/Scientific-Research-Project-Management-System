@@ -1,4 +1,4 @@
-# Báo cáo Tổng quan: Hệ thống Quản lý Đề tài Nghiên cứu Khoa học (Scientific Research Project Management System)
+# Hệ thống Quản lý Đề tài Nghiên cứu Khoa học (Scientific Research Project Management System)
 
 ## 1. Giới thiệu chung
 Hệ thống Quản lý Đề tài Nghiên cứu Khoa học là một giải pháp phần mềm toàn diện được thiết kế để số hóa và tối ưu hóa quy trình quản lý các đề tài nghiên cứu từ khâu đăng ký, xét duyệt, đánh giá đến nghiệm thu. Hệ thống giúp kết nối các nhà nghiên cứu, hội đồng đánh giá và ban quản lý một cách minh bạch, hiệu quả và tự động hóa.
